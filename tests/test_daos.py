@@ -1,9 +1,9 @@
-from src.modelos.ejercicio_cardio import EjercicioCardio
-from src.persistencia.ejercicio_dao import EjercicioDAO
 from src.modelos.cliente import Cliente
+from src.modelos.ejercicio_cardio import EjercicioCardio
+from src.modelos.enums import Intensidad, NivelRutina
 from src.modelos.rutina import Rutina
-from src.modelos.usuario import Usuario
 from src.persistencia.cliente_dao import ClienteDAO
+from src.persistencia.ejercicio_dao import EjercicioDAO
 from src.persistencia.rutina_dao import RutinaDAO
 from src.persistencia.usuario_dao import UsuarioDAO
 
@@ -12,13 +12,15 @@ def test_usuario_dao():
     correo = "usuario.dao.prueba@example.com"
     dao = UsuarioDAO()
 
-    usuario = Usuario(
+    usuario = Cliente(
         nombre="Usuario",
         apellido="Prueba",
         correo_electronico=correo,
         contrasenia_hash="Clave123",
         edad=30,
-        tipo_usuario="cliente",
+        peso=70.0,
+        altura=1.70,
+        objetivo="Mantener condición",
     )
 
     usuario_guardado = None
@@ -34,13 +36,20 @@ def test_usuario_dao():
         assert usuario_encontrado is not None
         assert usuario_encontrado.correo_electronico == correo
         assert usuario_encontrado.nombre == "Usuario"
+        assert usuario_encontrado.tipo_usuario == "cliente"
 
-        sesion_correcta = dao.iniciar_sesion(correo, "Clave123")
+        sesion_correcta = dao.iniciar_sesion(
+            correo,
+            "Clave123",
+        )
 
         assert sesion_correcta is not None
         assert sesion_correcta.correo_electronico == correo
 
-        sesion_incorrecta = dao.iniciar_sesion(correo, "Incorrecta")
+        sesion_incorrecta = dao.iniciar_sesion(
+            correo,
+            "Incorrecta",
+        )
 
         assert sesion_incorrecta is None
 
@@ -80,9 +89,11 @@ def test_cliente_dao():
         assert cliente_encontrado is not None
         assert cliente_encontrado.nombre == "Carlos"
         assert cliente_encontrado.correo_electronico == correo
+        assert cliente_encontrado.tipo_usuario == "cliente"
         assert float(cliente_encontrado.peso) == 82.5
         assert float(cliente_encontrado.altura) == 1.75
         assert cliente_encontrado.objetivo == "Bajar de peso"
+        assert cliente_encontrado.fecha_ingreso is not None
 
         clientes = dao.listar()
 
@@ -114,6 +125,8 @@ def test_rutina_dao():
 
         assert rutina_guardada.id_rutina is not None
         assert rutina_guardada.fecha_creacion is not None
+        assert rutina_guardada.nivel == NivelRutina.BASICO
+        assert rutina_guardada.nivel.value == "BASICO"
 
         rutina_encontrada = dao.buscar_por_id(
             rutina_guardada.id_rutina
@@ -121,7 +134,11 @@ def test_rutina_dao():
 
         assert rutina_encontrada is not None
         assert rutina_encontrada.nombre == "Rutina DAO"
-        assert rutina_encontrada.nivel == "BASICO"
+        assert rutina_encontrada.descripcion == "Rutina de prueba"
+        assert rutina_encontrada.objetivo == "Mejorar resistencia"
+        assert rutina_encontrada.nivel == NivelRutina.BASICO
+        assert rutina_encontrada.nivel.value == "BASICO"
+        assert rutina_encontrada.duracion_semanas == 4
 
         rutinas = dao.listar()
 
@@ -133,6 +150,7 @@ def test_rutina_dao():
     finally:
         if rutina_guardada is not None:
             dao.eliminar_por_id(rutina_guardada.id_rutina)
+
 
 def test_ejercicio_dao():
     dao = EjercicioDAO()
@@ -152,6 +170,8 @@ def test_ejercicio_dao():
         ejercicio_guardado = dao.guardar(ejercicio)
 
         assert ejercicio_guardado.id_ejercicio is not None
+        assert ejercicio_guardado.intensidad == Intensidad.MEDIA
+        assert ejercicio_guardado.intensidad.value == "MEDIA"
 
         ejercicios = dao.listar_ejercicios()
 
@@ -167,8 +187,13 @@ def test_ejercicio_dao():
 
         assert ejercicio_encontrado is not None
         assert ejercicio_encontrado.nombre == "Ejercicio DAO"
+        assert ejercicio_encontrado.descripcion == "Ejercicio de prueba"
         assert ejercicio_encontrado.tipo == "Aeróbico"
-        assert ejercicio_encontrado.intensidad == "MEDIA"
+        assert ejercicio_encontrado.duracion_minutos == 30
+        assert ejercicio_encontrado.intensidad == Intensidad.MEDIA
+        assert ejercicio_encontrado.intensidad.value == "MEDIA"
+        assert float(ejercicio_encontrado.calorias_estimadas) == 180.0
+        assert ejercicio_encontrado.calcular_calorias() == 180.0
 
     finally:
         if ejercicio_guardado is not None:

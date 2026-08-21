@@ -1,7 +1,11 @@
+from datetime import date
+from decimal import Decimal
+
 from src.modelos.usuario import Usuario
 
 
 class Cliente(Usuario):
+
     def __init__(
         self,
         nombre,
@@ -12,7 +16,6 @@ class Cliente(Usuario):
         peso,
         altura,
         objetivo,
-        tipo_usuario="cliente",
         id_usuario=None,
         fecha_registro=None,
         fecha_ingreso=None,
@@ -23,7 +26,7 @@ class Cliente(Usuario):
             correo_electronico=correo_electronico,
             contrasenia_hash=contrasenia_hash,
             edad=edad,
-            tipo_usuario=tipo_usuario,
+            tipo_usuario="cliente",
             id_usuario=id_usuario,
             fecha_registro=fecha_registro,
         )
@@ -32,6 +35,58 @@ class Cliente(Usuario):
         self.altura = altura
         self.objetivo = objetivo
         self.fecha_ingreso = fecha_ingreso
+
+    @property
+    def peso(self):
+        return self._peso
+
+    @peso.setter
+    def peso(self, valor):
+        if (
+            not isinstance(valor, (int, float, Decimal))
+            or isinstance(valor, bool)
+            or valor <= 0
+        ):
+            raise ValueError("El peso debe ser mayor que cero.")
+
+        self._peso = valor
+
+    @property
+    def altura(self):
+        return self._altura
+
+    @altura.setter
+    def altura(self, valor):
+        if (
+            not isinstance(valor, (int, float, Decimal))
+            or isinstance(valor, bool)
+            or valor <= 0
+        ):
+            raise ValueError("La altura debe ser mayor que cero.")
+
+        self._altura = valor
+
+    @property
+    def objetivo(self):
+        return self._objetivo
+
+    @objetivo.setter
+    def objetivo(self, valor):
+        if not isinstance(valor, str) or not valor.strip():
+            raise ValueError("El objetivo no puede estar vacío.")
+
+        self._objetivo = valor.strip()
+
+    @property
+    def fecha_ingreso(self):
+        return self._fecha_ingreso
+
+    @fecha_ingreso.setter
+    def fecha_ingreso(self, valor):
+        self._fecha_ingreso = valor or date.today()
+
+    def obtener_tipo_usuario(self):
+        return "cliente"
 
     def __repr__(self):
         return (

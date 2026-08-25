@@ -1,0 +1,2 @@
+﻿class ControlProgreso:
+    pass

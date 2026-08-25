@@ -1,0 +1,2 @@
+﻿class ControlEjercicios:
+    pass

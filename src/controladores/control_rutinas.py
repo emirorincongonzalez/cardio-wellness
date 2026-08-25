@@ -1,0 +1,2 @@
+﻿class ControlRutinas:
+    pass

@@ -5,87 +5,99 @@ from src.controladores.control_sesiones import ControlSesiones
 
 
 @pytest.fixture
-def mock_cliente_dao():
+def mock_sesion_dao():
     return Mock()
 
 
 @pytest.fixture
-def mock_rutina_dao():
-    return Mock()
+def controlador(mock_sesion_dao, tmp_path):
+    log_file = tmp_path / "logs" / "LOG_CARDIO.txt"
+    return ControlSesiones(sesion_dao=mock_sesion_dao, ruta_log=str(log_file))
 
 
-@pytest.fixture
-def controlador(mock_cliente_dao, mock_rutina_dao):
-    return ControlSesiones(
-        cliente_dao=mock_cliente_dao,
-        rutina_dao=mock_rutina_dao,
+def test_registrar_sesion_exitoso_y_auditoria(controlador, mock_sesion_dao):
+    mock_sesion_dao.guardar.side_effect = lambda s: s
+
+    cliente_mock = Mock()
+    cliente_mock.id_usuario = 15
+    rutina_mock = Mock()
+    rutina_mock.id_rutina = 3
+
+    sesion = controlador.registrar_sesion(
+        cliente=cliente_mock,
+        rutina=rutina_mock,
+        duracion_real=45,
+        intensidad_real="ALTA",
+        calorias_quemadas=400,
+        observaciones="Completó todo el circuito",
     )
 
+    assert sesion is not None
+    mock_sesion_dao.guardar.assert_called_once()
 
-def test_iniciar_sesion_exitosa(controlador, mock_cliente_dao, mock_rutina_dao):
-    mock_cliente = Mock()
-    mock_cliente.obtener_nombre_completo.return_value = "Carlos Pérez"
-    mock_cliente_dao.buscar_por_id.return_value = mock_cliente
-
-    mock_rutina = Mock()
-    mock_rutina.nombre = "Cardio Quema Grasa"
-    mock_rutina.calcular_duracion_total.return_value = 45
-    mock_rutina_dao.buscar_por_id.return_value = mock_rutina
-
-    sesion = controlador.iniciar_sesion_entrenamiento(1, 10)
-
-    assert sesion["id_cliente"] == 1
-    assert sesion["id_rutina"] == 10
-    assert sesion["cliente_nombre"] == "Carlos Pérez"
-    assert sesion["duracion_estimada_minutos"] == 45
-    assert sesion["estado"] == "EN_PROGRESO"
+    contenido_log = controlador.ruta_log.read_text(encoding="utf-8")
+    assert "CLIENTE_15, REGISTRO_SESION" in contenido_log
 
 
-@pytest.mark.parametrize("id_c, id_r", [(0, 1), (1, 0), ("1", 1), (1, None), (False, 1)])
-def test_iniciar_sesion_ids_invalidos(controlador, id_c, id_r):
-    with pytest.raises(ValueError):
-        controlador.iniciar_sesion_entrenamiento(id_c, id_r)
+def test_registrar_sesion_con_ids_directos(controlador, mock_sesion_dao):
+    mock_sesion_dao.guardar.side_effect = lambda s: s
 
-
-def test_iniciar_sesion_cliente_no_existe(controlador, mock_cliente_dao, mock_rutina_dao):
-    mock_cliente_dao.buscar_por_id.return_value = None
-
-    with pytest.raises(ValueError, match="cliente"):
-        controlador.iniciar_sesion_entrenamiento(99, 1)
-
-
-def test_iniciar_sesion_rutina_no_existe(controlador, mock_cliente_dao, mock_rutina_dao):
-    mock_cliente_dao.buscar_por_id.return_value = Mock()
-    mock_rutina_dao.buscar_por_id.return_value = None
-
-    with pytest.raises(ValueError, match="rutina"):
-        controlador.iniciar_sesion_entrenamiento(1, 99)
-
-
-def test_registrar_fin_sesion_exitoso(controlador):
-    sesion = {"estado": "EN_PROGRESO", "id_cliente": 1}
-
-    res = controlador.registrar_fin_sesion(
-        sesion=sesion,
-        minutos_reales=40,
-        calorias_quemadas=320,
+    sesion = controlador.registrar_sesion(
+        cliente=5,
+        rutina=2,
+        duracion_real=30,
+        intensidad_real="MEDIA",
+        calorias_quemadas=250,
     )
-
-    assert res["estado"] == "FINALIZADA"
-    assert res["minutos_reales"] == 40
-    assert res["calorias_quemadas"] == 320
+    assert sesion is not None
+    mock_sesion_dao.guardar.assert_called_once()
 
 
 @pytest.mark.parametrize(
-    "sesion, min_reales, cal",
+    "cliente, rutina, duracion, calorias",
     [
-        ({"estado": "FINALIZADA"}, 40, 300),
-        ("no_dict", 40, 300),
-        ({"estado": "EN_PROGRESO"}, 0, 300),
-        ({"estado": "EN_PROGRESO"}, 40, -10),
-        ({"estado": "EN_PROGRESO"}, "40", 300),
+        (0, 1, 30, 200),
+        (-1, 1, 30, 200),
+        ("cinco", 1, 30, 200),
+        (1, -2, 30, 200),
+        (1, 1, 0, 200),
+        (1, 1, -30, 200),
+        (1, 1, "30", 200),
+        (1, 1, 30, -50),
+        (1, 1, 30, "200"),
     ],
 )
-def test_registrar_fin_sesion_invalido(controlador, sesion, min_reales, cal):
+def test_registrar_sesion_validaciones_incorrectas(
+    controlador, cliente, rutina, duracion, calorias
+):
     with pytest.raises(ValueError):
-        controlador.registrar_fin_sesion(sesion, min_reales, cal)
+        controlador.registrar_sesion(
+            cliente=cliente,
+            rutina=rutina,
+            duracion_real=duracion,
+            intensidad_real="MEDIA",
+            calorias_quemadas=calorias,
+        )
+
+
+def test_obtener_sesiones_cliente_y_alias(controlador, mock_sesion_dao):
+    mock_sesion_dao.listar_por_cliente.return_value = [{"id_sesion": 1}, {"id_sesion": 2}]
+
+    res1 = controlador.obtener_sesiones_cliente(10)
+    res2 = controlador.listar_por_cliente(10)
+
+    assert len(res1) == 2
+    assert len(res2) == 2
+    assert mock_sesion_dao.listar_por_cliente.call_count == 2
+
+
+def test_eliminar_sesion_y_auditoria(controlador, mock_sesion_dao):
+    mock_sesion_dao.eliminar_por_id.return_value = True
+
+    resultado = controlador.eliminar_sesion(99, usuario_accion="admin")
+
+    assert resultado is True
+    mock_sesion_dao.eliminar_por_id.assert_called_once_with(99)
+
+    contenido_log = controlador.ruta_log.read_text(encoding="utf-8")
+    assert "admin, ELIMINACION_SESION" in contenido_log

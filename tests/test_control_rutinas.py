@@ -1,8 +1,7 @@
 from unittest.mock import Mock
 import pytest
 
-from src.controladores.control_rutinas import ControlRutinas
-from src.modelos.enums import NivelRutina
+from src.controladores.control_rutinas import ControlRutinas, _instanciar_rutina
 from src.modelos.rutina import Rutina
 
 
@@ -12,157 +11,166 @@ def mock_rutina_dao():
 
 
 @pytest.fixture
-def controlador(mock_rutina_dao):
-    return ControlRutinas(rutina_dao=mock_rutina_dao)
+def mock_asignacion_dao():
+    return Mock()
 
 
-def test_crear_rutina_exitosa(controlador, mock_rutina_dao):
+@pytest.fixture
+def controlador(mock_rutina_dao, mock_asignacion_dao, tmp_path):
+    log_file = tmp_path / "logs" / "LOG_CARDIO.txt"
+    return ControlRutinas(
+        rutina_dao=mock_rutina_dao,
+        asignacion_dao=mock_asignacion_dao,
+        ruta_log=str(log_file),
+    )
+
+
+def test_crear_rutina_exitoso_y_auditoria(controlador, mock_rutina_dao):
     mock_rutina_dao.guardar.side_effect = lambda r: r
 
     rutina = controlador.crear_rutina(
-        nombre="Cardio Quema Grasa",
-        descripcion="Rutina intensa de intervalos",
-        objetivo="Bajar de peso",
-        nivel=NivelRutina.INTERMEDIO,
-        duracion_semanas=6,
-        creado_por=1,
+        nombre="Fuerza Básica",
+        descripcion="Rutina para principiantes",
+        nivel_dificultad="Principiante",
+        duracion_estimada=45,
+        creado_por=10,
     )
 
     assert isinstance(rutina, Rutina)
-    assert rutina.nombre == "Cardio Quema Grasa"
     mock_rutina_dao.guardar.assert_called_once()
 
-
-@pytest.mark.parametrize("duracion_invalida", [0, -2, "6", None, False])
-def test_crear_rutina_duracion_invalida(controlador, duracion_invalida):
-    with pytest.raises(ValueError):
-        controlador.crear_rutina(
-            nombre="Cardio Quema Grasa",
-            descripcion="Rutina intensa de intervalos",
-            objetivo="Bajar de peso",
-            nivel="INTERMEDIO",
-            duracion_semanas=duracion_invalida,
-        )
-
-
-def test_obtener_por_id_valido(controlador, mock_rutina_dao):
-    mock_rutina_dao.buscar_por_id.return_value = "rutina_mock"
-
-    res = controlador.obtener_por_id(3)
-
-    assert res == "rutina_mock"
-    mock_rutina_dao.buscar_por_id.assert_called_once_with(3)
-
-
-@pytest.mark.parametrize("id_invalido", [0, -1, "3", None, True])
-def test_obtener_por_id_invalido(controlador, id_invalido):
-    with pytest.raises(ValueError):
-        controlador.obtener_por_id(id_invalido)
-
-
-def test_listar_rutinas(controlador, mock_rutina_dao):
-    mock_rutina_dao.listar.return_value = ["r1", "r2", "r3"]
-
-    res = controlador.listar_rutinas()
-
-    assert len(res) == 3
-    mock_rutina_dao.listar.assert_called_once()
-
-
-def test_actualizar_rutina_valida(controlador, mock_rutina_dao):
-    rutina = Rutina(
-        id_rutina=1,
-        nombre="Rutina Pro",
-        descripcion="Avanzada",
-        objetivo="Resistencia",
-        nivel=NivelRutina.AVANZADO,
-        duracion_semanas=8,
-    )
-    mock_rutina_dao.actualizar.return_value = rutina
-
-    res = controlador.actualizar_rutina(rutina)
-
-    assert res.nombre == "Rutina Pro"
-    mock_rutina_dao.actualizar.assert_called_once_with(rutina)
-
-
-def test_actualizar_rutina_tipo_invalido(controlador):
-    with pytest.raises(TypeError):
-        controlador.actualizar_rutina("no_es_rutina")
-
-
-def test_agregar_ejercicio_a_rutina_exitoso(controlador, mock_rutina_dao):
-    mock_rutina_dao.agregar_ejercicio.return_value = True
-
-    res = controlador.agregar_ejercicio_a_rutina(
-        id_rutina=1,
-        id_ejercicio=5,
-        orden_ejercicio=2,
-    )
-
-    assert res is True
-    mock_rutina_dao.agregar_ejercicio.assert_called_once_with(
-        id_rutina=1,
-        id_ejercicio=5,
-        orden_ejercicio=2,
-    )
+    contenido_log = controlador.ruta_log.read_text(encoding="utf-8")
+    assert "10, CREACION_RUTINA" in contenido_log
 
 
 @pytest.mark.parametrize(
-    "id_r, id_e, orden",
+    "nombre, descripcion, nivel, duracion, creado_por",
     [
-        (0, 1, 1),
-        (1, 0, 1),
-        (1, 1, 0),
-        ("1", 1, 1),
-        (1, "1", 1),
-        (1, 1, "1"),
-        (None, 1, 1),
-        (True, 1, 1),
+        ("", "Desc", "Facil", 30, 1),
+        ("   ", "Desc", "Facil", 30, 1),
+        ("Rutina", "", "Facil", 30, 1),
+        ("Rutina", "Desc", "", 30, 1),
+        ("Rutina", "Desc", "Facil", 0, 1),
+        ("Rutina", "Desc", "Facil", -10, 1),
+        ("Rutina", "Desc", "Facil", "30", 1),
+        ("Rutina", "Desc", "Facil", 30, -5),
+        ("Rutina", "Desc", "Facil", 30, 0),
+        ("Rutina", "Desc", "Facil", 30, "1"),
     ],
 )
-def test_agregar_ejercicio_parametros_invalidos(controlador, id_r, id_e, orden):
+def test_crear_rutina_validaciones_incorrectas(
+    controlador, nombre, descripcion, nivel, duracion, creado_por
+):
     with pytest.raises(ValueError):
-        controlador.agregar_ejercicio_a_rutina(id_r, id_e, orden)
+        controlador.crear_rutina(
+            nombre=nombre,
+            descripcion=descripcion,
+            nivel_dificultad=nivel,
+            duracion_estimada=duracion,
+            creado_por=creado_por,
+        )
 
 
-def test_eliminar_ejercicio_de_rutina(controlador, mock_rutina_dao):
-    mock_rutina_dao.eliminar_ejercicio.return_value = True
+def test_buscar_por_id_y_alias(controlador, mock_rutina_dao):
+    mock_rutina_dao.buscar_por_id.return_value = "rutina_mock"
 
-    res = controlador.eliminar_ejercicio_de_rutina(id_rutina=1, id_ejercicio=5)
+    assert controlador.buscar_por_id(1) == "rutina_mock"
+    assert controlador.obtener_por_id(1) == "rutina_mock"
+    assert mock_rutina_dao.buscar_por_id.call_count == 2
 
-    assert res is True
-    mock_rutina_dao.eliminar_ejercicio.assert_called_once_with(
+    with pytest.raises(ValueError):
+        controlador.buscar_por_id(-1)
+
+
+def test_listar_y_alias(controlador, mock_rutina_dao):
+    mock_rutina_dao.listar.return_value = ["r1", "r2"]
+
+    assert len(controlador.listar()) == 2
+    assert len(controlador.listar_rutinas()) == 2
+    assert mock_rutina_dao.listar.call_count == 2
+
+
+def test_actualizar_rutina(controlador, mock_rutina_dao):
+    rutina = _instanciar_rutina(
         id_rutina=1,
-        id_ejercicio=5,
+        nombre="Nombre nuevo",
+        descripcion="Desc",
+        nivel_dificultad="Media",
+        duracion_estimada=40,
     )
+    mock_rutina_dao.actualizar.return_value = rutina
+
+    resultado = controlador.actualizar_rutina(rutina)
+    assert resultado == rutina
+    mock_rutina_dao.actualizar.assert_called_once_with(rutina)
+
+    with pytest.raises(TypeError):
+        controlador.actualizar_rutina("no_es_objeto_rutina")
 
 
-@pytest.mark.parametrize("id_invalido", [0, -1, "1", None, False])
-def test_eliminar_ejercicio_id_invalido(controlador, id_invalido):
-    with pytest.raises(ValueError):
-        controlador.eliminar_ejercicio_de_rutina(id_invalido, 5)
-
-
-def test_listar_ejercicios_de_rutina(controlador, mock_rutina_dao):
-    mock_rutina_dao.listar_ejercicios.return_value = ["e1", "e2"]
-
-    res = controlador.listar_ejercicios_de_rutina(1)
-
-    assert len(res) == 2
-    mock_rutina_dao.listar_ejercicios.assert_called_once_with(1)
-
-
-def test_eliminar_rutina_valida(controlador, mock_rutina_dao):
+def test_eliminar_rutina_y_auditoria(controlador, mock_rutina_dao):
     mock_rutina_dao.eliminar_por_id.return_value = True
 
-    res = controlador.eliminar_rutina(2)
+    res = controlador.eliminar_rutina(4, usuario_accion="admin_gym")
 
     assert res is True
-    mock_rutina_dao.eliminar_por_id.assert_called_once_with(2)
+    mock_rutina_dao.eliminar_por_id.assert_called_once_with(4)
+
+    contenido_log = controlador.ruta_log.read_text(encoding="utf-8")
+    assert "admin_gym, ELIMINACION_RUTINA" in contenido_log
 
 
-@pytest.mark.parametrize("id_invalido", [0, -5, "2", None, True])
-def test_eliminar_rutina_id_invalido(controlador, id_invalido):
-    with pytest.raises(ValueError):
-        controlador.eliminar_rutina(id_invalido)
+def test_agregar_y_eliminar_ejercicio_auditoria(controlador, mock_rutina_dao):
+    mock_rutina_dao.agregar_ejercicio.return_value = True
+    mock_rutina_dao.eliminar_ejercicio.return_value = True
+
+    controlador.agregar_ejercicio_a_rutina(1, 10, usuario_accion="profesor1")
+    controlador.eliminar_ejercicio_de_rutina(1, 10, usuario_accion="profesor1")
+
+    contenido_log = controlador.ruta_log.read_text(encoding="utf-8")
+    assert "profesor1, AGREGAR_EJERCICIO_A_RUTINA" in contenido_log
+    assert "profesor1, ELIMINAR_EJERCICIO_DE_RUTINA" in contenido_log
+
+
+def test_asignar_rutina_con_rutina_activa_previa(controlador, mock_asignacion_dao):
+    mock_activa = Mock()
+    mock_activa.id_asignacion = 55
+    mock_asignacion_dao.obtener_activa_por_cliente.return_value = mock_activa
+    mock_asignacion_dao.asignar.return_value = {"id_asignacion": 56, "activa": True}
+
+    cliente_mock = Mock()
+    cliente_mock.id_usuario = 3
+    rutina_mock = Mock()
+    rutina_mock.id_rutina = 9
+
+    res = controlador.asignar_rutina(cliente_mock, rutina_mock, asignado_por=1)
+
+    mock_asignacion_dao.obtener_activa_por_cliente.assert_called_once_with(3)
+    mock_asignacion_dao.finalizar_asignacion.assert_called_once_with(55)
+    mock_asignacion_dao.asignar.assert_called_once_with(
+        id_cliente=3,
+        id_rutina=9,
+        asignado_por=1,
+    )
+    assert res == {"id_asignacion": 56, "activa": True}
+
+    contenido_log = controlador.ruta_log.read_text(encoding="utf-8")
+    assert "1, ASIGNACION_RUTINA" in contenido_log
+
+
+def test_asignar_rutina_sin_rutina_activa_previa_y_usando_ids(
+    controlador, mock_asignacion_dao
+):
+    mock_asignacion_dao.obtener_activa_por_cliente.return_value = None
+    mock_asignacion_dao.asignar.return_value = {"id_asignacion": 70, "activa": True}
+
+    res = controlador.asignar_rutina(cliente=7, rutina=12, asignado_por=2)
+
+    mock_asignacion_dao.obtener_activa_por_cliente.assert_called_once_with(7)
+    mock_asignacion_dao.finalizar_asignacion.assert_not_called()
+    mock_asignacion_dao.asignar.assert_called_once_with(
+        id_cliente=7,
+        id_rutina=12,
+        asignado_por=2,
+    )
+    assert res == {"id_asignacion": 70, "activa": True}

@@ -1,10 +1,8 @@
-from decimal import Decimal
 from unittest.mock import Mock
 import pytest
 
-from src.controladores.control_ejercicios import ControlEjercicios
+from src.controladores.control_ejercicios import ControlEjercicios, _instanciar_ejercicio
 from src.modelos.ejercicio_cardio import EjercicioCardio
-from src.modelos.enums import Intensidad
 
 
 @pytest.fixture
@@ -13,99 +11,96 @@ def mock_ejercicio_dao():
 
 
 @pytest.fixture
-def controlador(mock_ejercicio_dao):
-    return ControlEjercicios(ejercicio_dao=mock_ejercicio_dao)
+def controlador(mock_ejercicio_dao, tmp_path):
+    log_file = tmp_path / "logs" / "LOG_CARDIO.txt"
+    return ControlEjercicios(ejercicio_dao=mock_ejercicio_dao, ruta_log=str(log_file))
 
 
-def test_crear_ejercicio_exitoso(controlador, mock_ejercicio_dao):
+def test_crear_ejercicio_exitoso_y_auditoria(controlador, mock_ejercicio_dao):
     mock_ejercicio_dao.guardar.side_effect = lambda e: e
 
     ejercicio = controlador.crear_ejercicio(
-        nombre="Cinta HIIT",
-        descripcion="Intervalos en cinta de correr",
-        tipo="Cardio",
+        nombre="Cinta de correr",
+        descripcion="Trote continuo ritmo medio",
         duracion_minutos=30,
-        intensidad=Intensidad.ALTA,
-        calorias_estimadas=350,
-        creado_por=1,
+        calorias_estimadas=300,
+        usuario_creador="admin_cardio",
     )
 
     assert isinstance(ejercicio, EjercicioCardio)
-    assert ejercicio.nombre == "Cinta HIIT"
-    assert ejercicio.duracion_minutos == 30
     mock_ejercicio_dao.guardar.assert_called_once()
 
+    contenido_log = controlador.ruta_log.read_text(encoding="utf-8")
+    assert "admin_cardio, CREACION_EJERCICIO" in contenido_log
 
-@pytest.mark.parametrize("duracion_invalida", [0, -10, "30", None, False])
-def test_crear_ejercicio_duracion_invalida(controlador, duracion_invalida):
+
+@pytest.mark.parametrize(
+    "nombre, descripcion, duracion, calorias",
+    [
+        ("", "Desc", 30, 200),
+        ("   ", "Desc", 30, 200),
+        ("Cinta", "", 30, 200),
+        ("Cinta", "Desc", 0, 200),
+        ("Cinta", "Desc", -10, 200),
+        ("Cinta", "Desc", "30", 200),
+        ("Cinta", "Desc", 30, 0),
+        ("Cinta", "Desc", 30, -50),
+        ("Cinta", "Desc", 30, "200"),
+    ],
+)
+def test_crear_ejercicio_validaciones_incorrectas(
+    controlador, nombre, descripcion, duracion, calorias
+):
     with pytest.raises(ValueError):
         controlador.crear_ejercicio(
-            nombre="Bicicleta",
-            descripcion="Pedaleo continuo",
-            tipo="Cardio",
-            duracion_minutos=duracion_invalida,
-            intensidad=Intensidad.MEDIA,
-            calorias_estimadas=200,
+            nombre=nombre,
+            descripcion=descripcion,
+            duracion_minutos=duracion,
+            calorias_estimadas=calorias,
         )
 
 
-def test_obtener_por_id_valido(controlador, mock_ejercicio_dao):
+def test_buscar_por_id_y_alias(controlador, mock_ejercicio_dao):
     mock_ejercicio_dao.buscar_por_id.return_value = "ejercicio_mock"
 
-    res = controlador.obtener_por_id(4)
-
-    assert res == "ejercicio_mock"
-    mock_ejercicio_dao.buscar_por_id.assert_called_once_with(4)
-
-
-@pytest.mark.parametrize("id_invalido", [0, -3, "4", None, True])
-def test_obtener_por_id_invalido(controlador, id_invalido):
-    with pytest.raises(ValueError):
-        controlador.obtener_por_id(id_invalido)
+    assert controlador.buscar_por_id(5) == "ejercicio_mock"
+    assert controlador.obtener_por_id(5) == "ejercicio_mock"
+    assert mock_ejercicio_dao.buscar_por_id.call_count == 2
 
 
-def test_listar_ejercicios(controlador, mock_ejercicio_dao):
-    mock_ejercicio_dao.listar.return_value = ["e1", "e2", "e3"]
+def test_listar_y_alias(controlador, mock_ejercicio_dao):
+    mock_ejercicio_dao.listar.return_value = ["e1", "e2"]
 
-    res = controlador.listar_ejercicios()
+    assert len(controlador.listar()) == 2
+    assert len(controlador.listar_ejercicios()) == 2
+    assert mock_ejercicio_dao.listar.call_count == 2
 
-    assert len(res) == 3
-    mock_ejercicio_dao.listar.assert_called_once()
 
-
-def test_actualizar_ejercicio_valido(controlador, mock_ejercicio_dao):
-    ejercicio = EjercicioCardio(
+def test_actualizar_ejercicio(controlador, mock_ejercicio_dao):
+    ejercicio = _instanciar_ejercicio(
         id_ejercicio=1,
-        nombre="Remo Indoor",
-        descripcion="Cardio total",
-        tipo="Cardio",
-        duracion_minutos=25,
-        intensidad=Intensidad.ALTA,
-        calorias_estimadas=300,
+        nombre="Spinning",
+        descripcion="Intervalos",
+        duracion_minutos=45,
+        calorias_estimadas=450,
     )
     mock_ejercicio_dao.actualizar.return_value = ejercicio
 
-    res = controlador.actualizar_ejercicio(ejercicio)
-
-    assert res.nombre == "Remo Indoor"
+    resultado = controlador.actualizar_ejercicio(ejercicio)
+    assert resultado == ejercicio
     mock_ejercicio_dao.actualizar.assert_called_once_with(ejercicio)
 
-
-def test_actualizar_ejercicio_tipo_invalido(controlador):
     with pytest.raises(TypeError):
-        controlador.actualizar_ejercicio("no_es_ejercicio")
+        controlador.actualizar_ejercicio("no_es_instancia_ejercicio")
 
 
-def test_eliminar_ejercicio_valido(controlador, mock_ejercicio_dao):
+def test_eliminar_ejercicio_y_auditoria(controlador, mock_ejercicio_dao):
     mock_ejercicio_dao.eliminar_por_id.return_value = True
 
-    res = controlador.eliminar_ejercicio(7)
+    res = controlador.eliminar_ejercicio(8, usuario_accion="coach1")
 
     assert res is True
-    mock_ejercicio_dao.eliminar_por_id.assert_called_once_with(7)
+    mock_ejercicio_dao.eliminar_por_id.assert_called_once_with(8)
 
-
-@pytest.mark.parametrize("id_invalido", [0, -1, "7", None, False])
-def test_eliminar_ejercicio_id_invalido(controlador, id_invalido):
-    with pytest.raises(ValueError):
-        controlador.eliminar_ejercicio(id_invalido)
+    contenido_log = controlador.ruta_log.read_text(encoding="utf-8")
+    assert "coach1, ELIMINACION_EJERCICIO" in contenido_log

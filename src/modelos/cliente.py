@@ -1,5 +1,5 @@
-from datetime import date
 from decimal import Decimal
+from datetime import date
 
 from src.modelos.usuario import Usuario
 
@@ -16,6 +16,7 @@ class Cliente(Usuario):
         peso,
         altura,
         objetivo,
+        tipo_usuario="cliente",
         id_usuario=None,
         fecha_registro=None,
         fecha_ingreso=None,
@@ -26,7 +27,7 @@ class Cliente(Usuario):
             correo_electronico=correo_electronico,
             contrasenia_hash=contrasenia_hash,
             edad=edad,
-            tipo_usuario="cliente",
+            tipo_usuario=tipo_usuario,
             id_usuario=id_usuario,
             fecha_registro=fecha_registro,
         )
@@ -83,10 +84,10 @@ class Cliente(Usuario):
 
     @fecha_ingreso.setter
     def fecha_ingreso(self, valor):
-        self._fecha_ingreso = valor or date.today()
+        self._fecha_ingreso = valor if valor is not None else date.today()
 
     def obtener_tipo_usuario(self):
-        return "cliente"
+        return self.tipo_usuario
 
     def __repr__(self):
         return (

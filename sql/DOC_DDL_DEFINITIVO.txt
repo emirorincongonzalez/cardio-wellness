@@ -1,0 +1,201 @@
+================================================================
+DOCUMENTACIÓN DEL DDL DEFINITIVO
+Sistema: Cardio Wellness Manager
+Motor: PostgreSQL
+================================================================
+
+1. INTRODUCCIÓN
+----------------------------------------------------------------
+El presente script DDL (Data Definition Language) contiene la
+estructura definitiva de la base de datos para el Sistema de 
+Gestión de Rutinas Cardio-Wellness. Este diseño está basado 
+estrictamente en el Diagrama de Clases de Diseño (DCD) y ha sido 
+validado para cumplir con los requisitos funcionales y no 
+funcionales del proyecto.
+
+El script incluye:
+- Creación de tipos ENUM (coinciden con los enums de Python)
+- Tablas con herencia (usuarios → clientes/administradores)
+- Relaciones de composición (ON DELETE CASCADE)
+- Relaciones de agregación (tablas puente)
+- Índices para optimización de consultas
+- Vistas para simplificar consultas frecuentes
+- Datos de prueba (1 admin, 4 clientes, 6 ejercicios, 6 rutinas)
+
+================================================================
+2. NORMALIZACIÓN (3FN)
+----------------------------------------------------------------
+La base de datos está diseñada siguiendo la Tercera Forma Normal (3FN),
+lo que garantiza la eliminación de redundancias y dependencias
+funcionales no deseadas:
+
+PRIMERA FORMA NORMAL (1FN):
+- Todos los atributos son atómicos (indivisibles).
+- Cada tabla tiene una clave primaria (SERIAL o compuesta).
+- Ejemplo: `usuarios` tiene `id_usuario` como PK, y cada atributo
+  contiene un solo valor (ej. `nombre`, `apellido`).
+
+SEGUNDA FORMA NORMAL (2FN):
+- Todas las tablas están en 1FN.
+- Todos los atributos no clave dependen completamente de la PK.
+- Ejemplo: `rutina_ejercicios` tiene PK compuesta (`id_rutina`, 
+  `id_ejercicio`) y el atributo `orden_ejercicio` depende de ambos.
+
+TERCERA FORMA NORMAL (3FN):
+- Todas las tablas están en 2FN.
+- No existen dependencias transitivas (un atributo no clave depende
+  de otro atributo no clave).
+- Ejemplo: El `objetivo` del cliente está en `clientes`, no en 
+  `usuarios`, porque depende del cliente, no del usuario base.
+
+ESTRUCTURA DE TABLAS Y SU NORMALIZACIÓN:
+- `usuarios`: Base de la herencia. Atributos comunes a todos los usuarios.
+- `clientes`: Extiende `usuarios` con atributos específicos (peso, altura).
+- `administradores`: Extiende `usuarios` sin atributos adicionales.
+- `ejercicios`: Catálogo de ejercicios. Independiente de rutinas.
+- `rutinas`: Planes de entrenamiento. Independientes de clientes.
+- `rutina_ejercicios`: Tabla puente para la relación N:M entre rutinas y ejercicios.
+- `asignaciones_rutina`: Historial de asignaciones de rutinas a clientes.
+- `sesiones_entrenamiento`: Registro de entrenamientos realizados.
+- `progreso_mensual`: Resumen mensual del progreso del cliente.
+
+================================================================
+3. PROPIEDADES ACID
+----------------------------------------------------------------
+La base de datos garantiza las propiedades ACID (Atomicidad, 
+Consistencia, Aislamiento, Durabilidad) a través de:
+
+ATOMICIDAD:
+- Todas las operaciones se ejecutan en transacciones completas.
+- Si una parte falla, se hace ROLLBACK y no quedan datos parciales.
+- Implementado en los DAOs de Python con `BEGIN`, `COMMIT`, `ROLLBACK`.
+
+CONSISTENCIA:
+- Restricciones CHECK (ej. `edad > 0`, `peso > 0`, `porcentaje BETWEEN 0 AND 100`).
+- Claves foráneas con `ON DELETE CASCADE / RESTRICT / SET NULL`.
+- `UNIQUE` en `correo_electronico` y `(id_cliente, mes)`.
+- Enums (`tipo_usuario`, `nivel_rutina`, `intensidad`, `estado_asignacion`)
+  para evitar valores inválidos.
+
+AISLAMIENTO:
+- PostgreSQL maneja el aislamiento de transacciones por defecto 
+  (READ COMMITTED), garantizando que operaciones concurrentes no
+  se afecten entre sí.
+
+DURABILIDAD:
+- Todos los datos confirmados (`COMMIT`) se persisten en disco.
+- PostgreSQL usa WAL (Write-Ahead Logging) para asegurar la 
+  durabilidad incluso ante fallos del sistema.
+
+================================================================
+4. BUENAS PRÁCTICAS IMPLEMENTADAS
+----------------------------------------------------------------
+- **Nombres en minúsculas con guión bajo** (snake_case): 
+  `id_usuario`, `correo_electronico`, `fecha_registro`.
+- **Claves primarias con `SERIAL`**: Auto-incrementables.
+- **Claves foráneas explícitas** con `REFERENCES` y `ON DELETE`.
+- **Índices en columnas consultadas frecuentemente** (ver sección 5).
+- **Vistas para simplificar consultas complejas**:
+  - `vw_clientes_completo`: Unión de `usuarios` y `clientes`.
+  - `vw_rutina_activa_cliente`: Rutina activa de cada cliente.
+  - `vw_progreso_cliente`: Progreso con nivel de cumplimiento (ALTO/MEDIO/BAJO).
+- **Comentarios en tablas y columnas** (`COMMENT`) para auto-documentación.
+- **Restricciones `CHECK`** para validación de datos.
+- **Enums nativos** en lugar de `VARCHAR` con `CHECK`, para mejor rendimiento y coherencia.
+
+================================================================
+5. ÍNDICES (NUEVO EN ESTE PROYECTO)
+----------------------------------------------------------------
+Los índices son estructuras auxiliares que aceleran las consultas
+`SELECT`, `UPDATE` y `DELETE` cuando se usan en condiciones `WHERE`
+o `JOIN`. Funcionan como el índice de un libro: permiten encontrar
+datos sin tener que leer toda la tabla.
+
+En este proyecto se crearon los siguientes índices:
+
+ÍNDICES EN `usuarios`:
+- `idx_usuarios_correo`: Para búsquedas por correo (login rápido).
+- `idx_usuarios_tipo`: Para filtrar por tipo de usuario.
+- `idx_usuarios_nombre`: Para búsquedas por nombre y apellido.
+
+ÍNDICES EN `clientes`:
+- `idx_clientes_ingreso`: Para consultas de progreso por fecha.
+
+ÍNDICES EN `ejercicios`:
+- `idx_ejercicios_nombre`: Búsqueda por nombre.
+- `idx_ejercicios_tipo`: Búsqueda por tipo (LISS/HIIT).
+- `idx_ejercicios_intensidad`: Búsqueda por intensidad.
+
+ÍNDICES EN `rutinas`:
+- `idx_rutinas_objetivo`: Búsqueda por objetivo.
+- `idx_rutinas_nivel`: Búsqueda por nivel.
+
+ÍNDICES EN `rutina_ejercicios`:
+- `idx_rutina_ejercicios_rutina`: Para listar ejercicios de una rutina.
+- `idx_rutina_ejercicios_ejercicio`: Para saber en qué rutinas está un ejercicio.
+
+ÍNDICES EN `asignaciones_rutina`:
+- `idx_asignaciones_cliente`: Para listar asignaciones de un cliente.
+- `idx_asignaciones_estado`: Para filtrar por estado (ACTIVA/FINALIZADA).
+- `idx_asignaciones_fechas`: Para búsquedas por rango de fechas.
+- `idx_asignaciones_activa`: **ÍNDICE PARCIAL** que solo indexa registros
+  con `estado = 'ACTIVA'`, optimizando la búsqueda de la rutina activa.
+
+ÍNDICES EN `sesiones_entrenamiento`:
+- `idx_sesiones_cliente`: Para listar sesiones de un cliente.
+- `idx_sesiones_fecha`: Para búsquedas por fecha.
+- `idx_sesiones_completada`: Para filtrar sesiones completadas.
+
+ÍNDICES EN `progreso_mensual`:
+- `idx_progreso_cliente`: Para listar progreso de un cliente.
+- `idx_progreso_mes`: Para búsquedas por mes.
+
+================================================================
+6. DATOS DE PRUEBA
+----------------------------------------------------------------
+El script incluye datos de prueba que permiten probar el sistema
+sin necesidad de insertar datos manualmente:
+
+- 1 Administrador: Laura Gomez (admin@cardiowellness.com)
+- 4 Clientes: Carlos, Ana, Galia, Héctor
+- 6 Ejercicios: Caminata, Trote, Bicicleta, Saltar, Circuito, HIIT bajo
+- 6 Rutinas: 2 para bajar de peso, 2 para resistencia, 2 para mantener
+- Asignaciones de ejercicios a rutinas (agregación)
+- Asignaciones de rutinas a clientes (composición)
+- Sesiones de entrenamiento (3-4 por cliente)
+- Progreso mensual (agosto y septiembre)
+
+================================================================
+7. SCRIPT DEFINITIVO
+----------------------------------------------------------------
+El archivo `script2.sql` contiene la versión definitiva del DDL.
+- No se realizarán más cambios en la estructura de la base de datos.
+- El script está listo para ejecutarse en PostgreSQL.
+- La base de datos está normalizada, con ACID y buenas prácticas.
+
+PRÓXIMOS PASOS:
+1. Ejecutar `script2.sql` en PostgreSQL.
+2. Verificar vistas con `SELECT * FROM vw_clientes_completo;`
+3. Integrar con el código Python (DAO y Controladores).
+4. Conectar la interfaz (Tkinter) con la base de datos.
+5. Pasar a la fase de pruebas y auditoría.
+
+================================================================
+8. NOTA SOBRE EL NIVEL AVANZADO
+----------------------------------------------------------------
+El enum `nivel_rutina` incluye los valores 'BASICO', 'INTERMEDIO' y
+'AVANZADO'. Actualmente solo se usan los dos primeros en las rutinas
+de prueba. El nivel 'AVANZADO' está disponible para uso futuro, cuando
+el sistema esté probado y se quieran crear rutinas más exigentes.
+
+Esto es una decisión de diseño intencional: permite la escalabilidad
+sin modificar la estructura de la base de datos. En la interfaz, 
+Eliam puede mostrar los tres niveles en los combobox, y cuando el 
+administrador cree una rutina avanzada, el sistema la guardará sin
+problemas.
+
+================================================================
+FIN DE LA DOCUMENTACIÓN
+================================================================
+FIN DE LA DOCUMENTACIÓN
+================================================================

@@ -149,7 +149,7 @@ class Usuario(ABC):
     def obtener_nombre_completo(self) -> str:
         return f"{self.nombre} {self.apellido}"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
             f"id_usuario={self.id_usuario}, "

@@ -151,7 +151,7 @@ class EjercicioCardio:
         return float(self.calorias_estimadas)
 
 #==Representacion==
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"EjercicioCardio(id_ejercicio={self.id_ejercicio}, "
             f"nombre='{self.nombre}', "

@@ -191,7 +191,7 @@ class Rutina:
         )
 
 #==Representacion==
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"Rutina(id_rutina={self.id_rutina}, "
             f"nombre='{self.nombre}', "

@@ -1,0 +1,304 @@
+================================================================
+DOCUMENTACIÓN DE LA CAPA DE DOMINIO
+Sistema: Cardio Wellness Manager
+Fecha: 02/09/2026
+Estado: DEFINITIVA (pendiente de revisión final)
+================================================================
+
+1. INTRODUCCIÓN
+----------------------------------------------------------------
+La capa de dominio constituye el núcleo del sistema. Contiene las
+entidades de negocio, las reglas fundamentales y la lógica que 
+define el comportamiento del sistema, independientemente de la 
+interfaz de usuario, la persistencia o los controladores.
+
+Esta capa ha sido implementada siguiendo los principios de la 
+Programación Orientada a Objetos (POO) y está alineada con el 
+Diagrama de Clases de Diseño (DCD) y el modelo relacional (DDL).
+
+ARCHIVOS QUE COMPONEN LA CAPA DE DOMINIO:
+- enums.py               → Enums: NivelRutina, Intensidad, EstadoAsignacion
+- usuario.py             → Clase abstracta Usuario (base)
+- cliente.py             → Cliente (hereda de Usuario)
+- administrador.py       → Administrador (hereda de Usuario)
+- ejercicio_cardio.py    → EjercicioCardio
+- rutina.py              → Rutina (con agregación de ejercicios)
+- asignacion_rutina.py   → AsignacionRutina
+- sesion_entrenamiento.py→ SesionEntrenamiento
+- progreso_mensual.py    → ProgresoMensual
+
+Todos estos archivos están disponibles en la carpeta `src/modelos/`
+y se consideran definitivos. Quedan pendientes de una revisión final
+por parte del equipo.
+
+================================================================
+
+2. TYPE HINTS Y LA LIBRERÍA `typing`
+----------------------------------------------------------------
+El type hinting (o anotación de tipos) es una característica de 
+Python que permite indicar el tipo de dato esperado para los 
+parámetros, el valor de retorno de las funciones y los atributos 
+de las clases. No es obligatorio, pero mejora significativamente 
+la legibilidad y el mantenimiento del código.
+
+¿POR QUÉ USAR TYPE HINTS?
+- Mejoran la legibilidad: cualquier persona que lea el código 
+sabe qué tipo de datos espera cada método.
+- Facilitan la detección de errores: herramientas como Pylance o 
+mypy pueden advertir sobre inconsistencias de tipos antes de 
+ejecutar el código.
+- Mejoran el autocompletado en los IDEs (VS Code, PyCharm, etc.).
+- Documentan el código de forma explícita y auto-contenida.
+
+LA LIBRERÍA `typing` (incorporada desde Python 3.5):
+Proporciona tipos genéricos para situaciones más complejas:
+- `List[T]` → lista de elementos de tipo T.
+- `Optional[T]` → valor que puede ser T o None.
+- `Tuple[T, ...]` → tupla de elementos de tipo T.
+- `Dict[K, V]` → diccionario con claves de tipo K y valores de tipo V.
+
+EJEMPLO EN NUESTRO CÓDIGO:
+```python
+from typing import List, Optional
+
+def agregar_ejercicio(self, ejercicio: EjercicioCardio) -> None:
+    # Se espera un objeto EjercicioCardio y no retorna nada
+
+@property
+def ejercicios(self) -> Tuple[EjercicioCardio, ...]:
+    # Retorna una tupla inmutable de ejercicios
+
+En usuario.py:
+def actualizar_datos_personales(
+    self,
+    nombre: str,
+    apellido: str,
+    correo: str,
+    edad: int
+) -> None:
+    # Todos los parámetros tienen tipo definido
+
+En cliente.py:
+def __init__(
+    self,
+    nombre: str,
+    apellido: str,
+    correo_electronico: str,
+    contrasenia_hash: str,
+    edad: int,
+    peso: float,
+    altura: float,
+    objetivo: str,
+    id_usuario: Optional[int] = None,
+    fecha_registro: Optional[date] = None,
+    fecha_ingreso: Optional[date] = None,
+) -> None:
+    # Uso de Optional para parámetros que pueden ser None
+
+Con esto, cualquier desarrollador que utilice estos métodos sabrá
+exactamente qué datos proporcionar y qué esperar.
+
+================================================================
+
+3. BUENAS PRACTICAS DE POO APLICADAS
+----------------------------------------------------------------
+A continuación se detallan los principios fundamentales de la POO
+y cómo se han aplicado en la capa de dominio.
+
+3.1 ENCAPSULAMIENTO
+El encapsulamiento consiste en ocultar los detalles internos de una
+clase y exponer solo lo necesario a través de una interfaz pública.
+En Python, esto se logra con atributos privados (prefijo _) y
+propiedades (@property).
+
+APLICACIÓN EN EL CÓDIGO:
+
+Todos los atributos de las clases son privados (ej. _nombre,
+_peso, _ejercicios).
+
+Se accede a ellos mediante propiedades getter y setter con
+validaciones.
+
+EJEMPLO (de usuario.py):
+@property
+def edad(self) -> int:
+    return self._edad
+
+@edad.setter
+def edad(self, valor: int) -> None:
+    if not isinstance(valor, int) or valor <= 0:
+        raise ValueError("La edad debe ser un entero mayor que cero.")
+    self._edad = valor
+
+De esta forma, el estado interno de Usuario está protegido y no
+puede ser modificado sin pasar por las validaciones.
+
+3.2 ABSTRACCIÓN
+La abstracción permite definir interfaces generales que ocultan los
+detalles de implementación. En POO, las clases abstractas y los
+métodos abstractos son las herramientas clave.
+
+APLICACIÓN EN EL CÓDIGO:
+
+Usuario es una clase abstracta (hereda de ABC) con el método
+abstracto obtener_tipo_usuario().
+
+Cliente y Administrador implementan ese método concreto.
+
+Esto obliga a que cualquier subclase de Usuario defina su
+comportamiento, garantizando que nunca se instancie una clase
+incompleta.
+
+EJEMPLO:
+class Usuario(ABC):
+    @abstractmethod
+    def obtener_tipo_usuario(self) -> str:
+        pass
+
+class Cliente(Usuario):
+    def obtener_tipo_usuario(self) -> str:
+        return "cliente"
+
+3.3 HERENCIA
+La herencia permite crear nuevas clases a partir de otras,
+reutilizando atributos y métodos. Es una relación "es-un".
+
+APLICACIÓN EN EL CÓDIGO:
+
+Cliente y Administrador heredan de Usuario.
+
+Usuario concentra los atributos comunes (nombre, correo, edad,
+etc.) y los métodos compartidos (cambiar contraseña, obtener
+nombre completo).
+
+Las subclases solo añaden o modifican lo específico.
+
+Esto evita la duplicación de código y facilita los cambios: si se
+modifica Usuario, todos los usuarios se actualizan automáticamente.
+
+3.4 POLIMORFISMO
+El polimorfismo permite que objetos de diferentes clases respondan
+al mismo mensaje de forma distinta. En la práctica, se logra con
+métodos que tienen el mismo nombre pero diferentes implementaciones.
+
+APLICACIÓN EN EL CÓDIGO:
+
+obtener_tipo_usuario() se define en Usuario como abstracto, y
+se implementa en Cliente (retorna "cliente") y en
+Administrador (retorna "administrador").
+
+El controlador ControlAutenticacion puede usar este método sin
+saber qué tipo de usuario es, confiando en que cada subclase
+devolverá su propio valor.
+
+3.5 COMPOSICION Y AGREGACION
+Composición: relación fuerte donde el objeto hijo no puede existir
+sin el padre (ej. Cliente → SesionEntrenamiento). En el DDL,
+esto se refleja con ON DELETE CASCADE.
+
+Agregación: relación débil donde el objeto hijo puede existir
+independientemente (ej. Rutina → EjercicioCardio). En el DDL,
+se refleja con ON DELETE SET NULL o tabla puente.
+
+APLICACIÓN EN EL CÓDIGO:
+
+Cliente contiene listas de AsignacionRutina, SesionEntrenamiento
+y ProgresoMensual (composición).
+
+Rutina contiene una lista de EjercicioCardio (agregación).
+Los ejercicios pueden existir sin una rutina.
+
+3.6 VALIDACION Y MANEJO DE EXCEPCIONES
+Las clases validan los datos en los setters y en los constructores
+para garantizar la integridad del estado del objeto. Esto evita que
+un objeto entre en un estado inválido.
+
+EJEMPLO(de rutina.py):
+@duracion_semanas.setter
+def duracion_semanas(self, valor: int) -> None:
+    if not isinstance(valor, int) or valor <= 0:
+        raise ValueError("La duración debe ser un entero mayor que cero.")
+    self._duracion_semanas = valor
+
+3.7 USO DE ENUMS
+Los enums (NivelRutina, Intensidad, EstadoAsignacion) evitan
+el uso de strings mágicos y garantizan que los valores sean siempre
+válidos. Esto reduce errores y documenta las opciones posibles.
+
+EJEMPLO (de ejercicio_cardio.py):
+@intensidad.setter
+def intensidad(self, valor: Intensidad) -> None:
+    if not isinstance(valor, Intensidad):
+        raise ValueError("La intensidad debe ser un valor de Intensidad.")
+    self._intensidad = valor
+
+3.8 DOCUMENTACION Y NOMBRES CLAROS
+Los nombres de clases, métodos y atributos son descriptivos y en
+español (o inglés) claro.
+
+Se han añadido docstrings en las clases y métodos principales.
+
+Se usan comentarios para explicar secciones complejas.
+
+================================================================
+
+4. CONCURRENCIA CON EL DCD Y EL DDL
+La capa de dominio es la traducción directa del DCD a código Python.
+Además, está alineada con el modelo relacional (DDL) en cuanto a
+nombres, tipos y relaciones.
+
+TABLA DE CORRESPONDENCIA:
+DCD (Clase)	        Python (modelo)	        DDL (tabla)
+Usuario (abstract)	usuario.py (abstracto)	usuarios
+Cliente	            cliente.py	            clientes
+Administrador	    administrador.py	    administradores
+EjercicioCardio	    ejercicio_cardio.py	    ejercicios
+Rutina	            rutina.py	            rutinas
+AsignacionRutina	asignacion_rutina.py	asignaciones_rutina
+SesionEntrenamiento	sesion_entrenamiento.py	sesiones_entrenamiento
+ProgresoMensual	    progreso_mensual.py	    progreso_mensual
+
+Las relaciones (composición, agregación, herencia) se mantienen en
+ambos modelos.
+
+================================================================
+
+5. CONCLUSIONES Y ESTADO ACTUAL
+----------------------------------------------------------------
+La capa de dominio del sistema Cardio Wellness Manager se encuentra
+completamente implementada y es funcional.
+
+CARACTERÍSTICAS DESTACADAS:
+
+100% alineada con el DCD.
+
+Coherente con el DDL (PostgreSQL).
+
+Usa type hints y la librería typing para mejorar la legibilidad.
+
+Aplica los principios fundamentales de POO: encapsulamiento,
+abstracción, herencia, polimorfismo, composición y agregación.
+
+Incluye validaciones robustas y manejo de excepciones.
+
+Código documentado y organizado.
+
+PROXIMOS PASOS:
+1. Revisión final por parte del equipo.
+
+2. Integración con la capa de persistencia (DAOs).
+Se revisara el Jueves 03/09.
+
+3. Conexión con la capa de control (servicios).
+Se revisara el Viernes 04/09.
+
+4. Pruebas de integración y otros tipos de prueba por Juan.
+(Proxima semana o antes, si es posible).
+
+Este documento sirve como evidencia de que la capa de dominio ha
+sido desarrollada siguiendo las mejores prácticas y está lista
+para ser utilizada en las siguientes fases del proyecto.
+
+================================================================
+FIN DEL DOCUMENTO
+================================================================

@@ -1,3 +1,5 @@
+from typing import Optional
+
 from psycopg2 import IntegrityError
 
 from src.modelos.cliente import Cliente
@@ -7,243 +9,230 @@ from src.servicios.gestor_seguridad import GestorSeguridad
 
 class UsuarioDAO:
 
-    def guardar(self, usuario):
-        conexion = ConexionBD.obtener_conexion()
+    def __init__(self) -> None:
+        #Inicializa el DAO con la instancia Singleton de ConexionBD
+        self._conexion = ConexionBD.obtener_instancia()
+
+    def guardar(self, usuario, contrasenia_plana: str):
+        """
+        Guarda un nuevo usuario en la base de datos.
+
+        Args:
+            usuario: Instancia del usuario a guardar.
+            contrasenia_plana (str): Contraseña en texto plano del usuario.
+
+        Returns:
+            Usuario: Instancia del usuario con el ID asignado y fecha de registro.
+
+        Raises:
+            ValueError: Si el correo ya está registrado.
+            Runtimeerror: Si ocurre un error inesperado durante la operación.
+        """
+
+        if not isinstance(contrasenia_plana, str) or not contrasenia_plana:
+            raise ValueError("La contraseña debe ser una cadena no vacía.")
+
+        # Insertar en usuarios
+        sql_usuario = """
+            INSERT INTO usuarios (
+                nombre,
+                apellido,
+                correo_electronico,
+                "contraseña_hash",
+                edad,
+                tipo_usuario
+            )
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id_usuario, fecha_registro
+        """
+
+        parametros_usuario = (
+            usuario.nombre,
+            usuario.apellido,
+            usuario.correo_electronico,
+            contrasenia_hash,
+            usuario.edad,
+            usuario.tipo_usuario
+        )
 
         try:
-            with conexion.cursor() as cursor:
-                contrasenia_hash = (
-                    GestorSeguridad.generar_hash(
-                        usuario.contrasenia_hash
-                    )
-                )
+            resultado = self._conexion.ejecutar_consulta(sql_usuario, parametros_usuario)
+            if not resultado:
+                raise RuntimeError("No se pudo guardar el usuario.")
+            usuario.id_usuario = resultado[0]['id_usuario']
+            usuario.fecha_registro = resultado[0]['fecha_registro']
 
-                consulta = """
-                    INSERT INTO usuarios (
-                        nombre,
-                        apellido,
-                        correo_electronico,
-                        "contraseña_hash",
-                        edad,
-                        tipo_usuario
+            #Si es cliente, insertar en clientes
+            if isinstance(usuario, Cliente):
+                sql_cliente = """
+                  INSERT INTO clientes (
+                    id_usuario,
+                    peso,
+                    altura,
+                    objetivo
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    RETURNING id_usuario, fecha_registro
+                VALUES (%s, %s, %s, %s)
+                RETURNING fecha_ingreso
                 """
 
-                cursor.execute(
-                    consulta,
-                    (
-                        usuario.nombre,
-                        usuario.apellido,
-                        usuario.correo_electronico,
-                        contrasenia_hash,
-                        usuario.edad,
-                        usuario.tipo_usuario,
-                    ),
+                parametros_cliente = (
+                    usuario.id_usuario,
+                    usuario.peso,
+                    usuario.altura,
+                    usuario.objetivo
                 )
+                resultado_cliente = self._conexion.ejecutar_consulta(sql_cliente, parametros_cliente)
+                if resultado_cliente:
+                    usuario.fecha_ingreso = resultado_cliente[0]['fecha_ingreso']
 
-                resultado = cursor.fetchone()
-
-                usuario.id_usuario = resultado[0]
-                usuario.fecha_registro = resultado[1]
-
-                if isinstance(usuario, Cliente):
-                    consulta_cliente = """
-                        INSERT INTO clientes (
-                            id_usuario,
-                            peso,
-                            altura,
-                            objetivo
-                        )
-                        VALUES (%s, %s, %s, %s)
-                        RETURNING fecha_ingreso
-                    """
-
-                    cursor.execute(
-                        consulta_cliente,
-                        (
-                            usuario.id_usuario,
-                            usuario.peso,
-                            usuario.altura,
-                            usuario.objetivo,
-                        ),
-                    )
-
-                    resultado_cliente = cursor.fetchone()
-                    usuario.fecha_ingreso = resultado_cliente[0]
-
-            conexion.commit()
             return usuario
 
-        except IntegrityError as error:
-            conexion.rollback()
+        except IntegrityError as e:
+            if e.pgcode == "23505":  # Código de error para violación de restricción única
+                raise ValueError("El correo ya está registrado.") from e
+            raise RuntimeError("Error de integridad al guardar el usuario: {e}") from e
 
-            if error.pgcode == "23505":
-                raise ValueError(
-                    "El correo ya está registrado."
-                ) from error
+    def buscar_por_correo(self, correo: str):
+        """
+        Busca un usuario por su correo electrónico.
 
-            raise
+        Args:
+            correo (str): Correo electrónico del usuario a buscar.
 
-        except Exception:
-            conexion.rollback()
-            raise
+        Returns:
+            Usuario: Instancia del usuario encontrado, o None si no se encuentra.
+        """
+        sql = """
+            SELECT
+                u.id_usuario,
+                u.nombre,
+                u.apellido,
+                u.correo_electronico,
+                u."contraseña_hash",
+                u.edad,
+                u.tipo_usuario,
+                u.fecha_registro,
+                c.peso,
+                c.altura,
+                c.objetivo,
+                c.fecha_ingreso
+            FROM usuarios u
+            LEFT JOIN clientes c ON u.id_usuario = c.id_usuario
+            WHERE u.correo_electronico = %s
+        """
+        resultado = self._conexion.ejecutar_consulta(sql, (correo,))
+        if not resultado:
+            return None
 
-        finally:
-            conexion.close()
+        fila = resultado[0]
+        tipo_usuario = fila['tipo_usuario'].strip().lower()
 
-    def buscar_por_correo(self, correo):
-        conexion = ConexionBD.obtener_conexion()
+        if tipo_usuario == "cliente":
+            return Cliente(
+                id_usuario=fila['id_usuario'],
+                nombre=fila['nombre'],
+                apellido=fila['apellido'],
+                correo_electronico=fila['correo_electronico'],
+                contrasenia_hash=fila['contraseña_hash'],
+                edad=fila['edad'],
+                tipo_usuario=fila['tipo_usuario'],
+                fecha_registro=fila['fecha_registro'],
+                peso=fila['peso'],
+                altura=fila['altura'],
+                objetivo=fila['objetivo'],
+                fecha_ingreso=fila['fecha_ingreso']
+            )
+        elif tipo_usuario == "administrador":
+            from src.modelos.administrador import Administrador
+            return Administrador(
+                id_usuario=fila['id_usuario'],
+                nombre=fila['nombre'],
+                apellido=fila['apellido'],
+                correo_electronico=fila['correo_electronico'],
+                contrasenia_hash=fila['contraseña_hash'],
+                edad=fila['edad'],
+                tipo_usuario=fila['tipo_usuario'],
+                fecha_registro=fila['fecha_registro']
+            )
+        else:
+            raise ValueError(f"Tipo de usuario desconocido: {tipo_usuario}")
+        
 
-        try:
-            with conexion.cursor() as cursor:
-                consulta = """
-                    SELECT
-                        u.id_usuario,
-                        u.nombre,
-                        u.apellido,
-                        u.correo_electronico,
-                        u."contraseña_hash",
-                        u.edad,
-                        u.tipo_usuario,
-                        u.fecha_registro,
-                        c.peso,
-                        c.altura,
-                        c.objetivo,
-                        c.fecha_ingreso
-                    FROM usuarios u
-                    LEFT JOIN clientes c
-                        ON u.id_usuario = c.id_usuario
-                    WHERE u.correo_electronico = %s
-                """
+    def iniciar_sesion(self, correo: str, contrasenia: str):
+        """
+        Verifica las credenciales de un usuario.
 
-                cursor.execute(consulta, (correo,))
-                fila = cursor.fetchone()
+        Args:
+            correo (str): Correo electrónico del usuario.
+            contrasenia (str): Contraseña en texto plano del usuario.
 
-                if fila is None:
-                    return None
-
-                tipo_usuario = fila[6].strip().lower()
-
-                if tipo_usuario == "cliente":
-                    return Cliente(
-                        id_usuario=fila[0],
-                        nombre=fila[1],
-                        apellido=fila[2],
-                        correo_electronico=fila[3],
-                        contrasenia_hash=fila[4],
-                        edad=fila[5],
-                        fecha_registro=fila[7],
-                        peso=fila[8],
-                        altura=fila[9],
-                        objetivo=fila[10],
-                        fecha_ingreso=fila[11],
-                    )
-
-                raise ValueError(
-                    f"Tipo de usuario no soportado: {tipo_usuario}"
-                )
-
-        finally:
-            conexion.close()
-
-    def iniciar_sesion(self, correo, contrasenia):
+        Returns:
+            Usuario: Instancia del usuario si las credenciales son válidas, o None si no
+        """
         usuario = self.buscar_por_correo(correo)
 
         if usuario is None:
             return None
 
-        contrasenia_valida = (
-            GestorSeguridad.verificar_contrasenia(
-                contrasenia,
-                usuario.contrasenia_hash,
-            )
-        )
-
-        if not contrasenia_valida:
-            return None
-
-        return usuario
+        if GestorSeguridad.verificar_contrasenia(contrasenia, usuario.contrasenia_hash):
+            return usuario
+        return None
 
     def actualizar(self, usuario):
+        """
+        Actualiza los datos de un usuario.
+
+        Args:
+            usuario: Instancia de Usuario con id_usuario
+
+        Returns:
+            Usuario: Instancia del usuario actualizado.
+
+        Raises:
+            ValueError: Si el usuario no tiene un id_usuario o si el correo ya está registrado.
+        """
         if usuario.id_usuario is None:
             raise ValueError(
                 "El usuario debe tener un id para actualizarse."
             )
 
-        conexion = ConexionBD.obtener_conexion()
+        sql = """
+            UPDATE usuarios
+            SET nombre = %s,
+                apellido = %s,
+                correo_electronico = %s,
+                edad = %s,
+                tipo_usuario = %s
+            WHERE id_usuario = %s
+        """
+        parametros = (
+            usuario.nombre,
+            usuario.apellido,
+            usuario.correo_electronico,
+            usuario.edad,
+            usuario.tipo_usuario,
+            usuario.id_usuario
+        )
 
         try:
-            with conexion.cursor() as cursor:
-                consulta = """
-                    UPDATE usuarios
-                    SET nombre = %s,
-                        apellido = %s,
-                        correo_electronico = %s,
-                        edad = %s,
-                        tipo_usuario = %s
-                    WHERE id_usuario = %s
-                """
-
-                cursor.execute(
-                    consulta,
-                    (
-                        usuario.nombre,
-                        usuario.apellido,
-                        usuario.correo_electronico,
-                        usuario.edad,
-                        usuario.tipo_usuario,
-                        usuario.id_usuario,
-                    ),
-                )
-
-                if cursor.rowcount == 0:
-                    raise ValueError(
-                        "No se encontró el usuario."
-                    )
-
-            conexion.commit()
+            actualizado = self._conexion.ejecutar_actualizacion(sql, parametros)
+            if not actualizado:
+                raise ValueError("No se encontro usuario con el ID proporcionado.")
             return usuario
+        except IntegrityError as e:
+            if e.pgcode == "23505":  # Código de error para violación de restricción única
+                raise ValueError("El correo ya está registrado.") from e
+            raise RuntimeError("Error de integridad al actualizar el usuario: {e}") from e
 
-        except IntegrityError as error:
-            conexion.rollback()
+    def eliminar_por_id(self, id_usuario: int) -> bool:
+        """
+        Elimina un usuario de la base de datos por su ID.
 
-            if error.pgcode == "23505":
-                raise ValueError(
-                    "El correo ya está registrado."
-                ) from error
+        Args:
+            id_usuario (int): ID del usuario a eliminar.
 
-            raise
-
-        except Exception:
-            conexion.rollback()
-            raise
-
-        finally:
-            conexion.close()
-
-    def eliminar_por_id(self, id_usuario):
-        conexion = ConexionBD.obtener_conexion()
-
-        try:
-            with conexion.cursor() as cursor:
-                cursor.execute(
-                    """
-                    DELETE FROM usuarios
-                    WHERE id_usuario = %s
-                    """,
-                    (id_usuario,),
-                )
-
-                eliminado = cursor.rowcount > 0
-
-            conexion.commit()
-            return eliminado
-
-        except Exception:
-            conexion.rollback()
-            raise
-
-        finally:
-            conexion.close()
+        Returns:
+            bool: True si el usuario fue eliminado, False en caso contrario.
+        """
+        sql = "DELETE FROM usuarios WHERE id_usuario = %s"
+        return self._conexion.ejecutar_actualizacion(sql, (id_usuario,))

@@ -1,4 +1,5 @@
 from datetime import date
+from typing import List, Optional, Tuple
 
 from src.modelos.enums import NivelRutina
 from src.modelos.ejercicio_cardio import EjercicioCardio
@@ -8,16 +9,16 @@ class Rutina:
 
     def __init__(
         self,
-        nombre,
-        descripcion,
-        objetivo,
-        nivel,
-        duracion_semanas,
-        creado_por=None,
-        id_rutina=None,
-        fecha_creacion=None,
-        ejercicios=None,
-    ):
+        nombre: str,
+        descripcion: str,
+        objetivo: str,
+        nivel: NivelRutina,
+        duracion_semanas: int,
+        creado_por: Optional[int] = None,
+        id_rutina: Optional[int] = None,
+        fecha_creacion: Optional[date] = None,
+        ejercicios: Optional[List[EjercicioCardio]] = None,
+    ) -> None:
         self.id_rutina = id_rutina
         self.nombre = nombre
         self.descripcion = descripcion
@@ -33,52 +34,52 @@ class Rutina:
                 self.agregar_ejercicio(ejercicio)
 
     @property
-    def id_rutina(self):
+    def id_rutina(self) -> Optional[int]:
         return self._id_rutina
 
     @id_rutina.setter
-    def id_rutina(self, valor):
+    def id_rutina(self, valor: Optional[int]) -> None:
         self._id_rutina = valor
 
     @property
-    def nombre(self):
+    def nombre(self) -> str:
         return self._nombre
 
     @nombre.setter
-    def nombre(self, valor):
+    def nombre(self, valor: str) -> None:
         if not isinstance(valor, str) or not valor.strip():
             raise ValueError("El nombre no puede estar vacío.")
 
         self._nombre = valor.strip()
 
     @property
-    def descripcion(self):
+    def descripcion(self) -> str:
         return self._descripcion
 
     @descripcion.setter
-    def descripcion(self, valor):
+    def descripcion(self, valor: str) -> None:
         if not isinstance(valor, str) or not valor.strip():
             raise ValueError("La descripción no puede estar vacía.")
 
         self._descripcion = valor.strip()
 
     @property
-    def objetivo(self):
+    def objetivo(self) -> str:
         return self._objetivo
 
     @objetivo.setter
-    def objetivo(self, valor):
+    def objetivo(self, valor: str) -> None:
         if not isinstance(valor, str) or not valor.strip():
             raise ValueError("El objetivo no puede estar vacío.")
 
         self._objetivo = valor.strip()
 
     @property
-    def nivel(self):
+    def nivel(self) -> NivelRutina:
         return self._nivel
 
     @nivel.setter
-    def nivel(self, valor):
+    def nivel(self, valor: NivelRutina) -> None:
         if isinstance(valor, NivelRutina):
             self._nivel = valor
             return
@@ -101,11 +102,11 @@ class Rutina:
         )
 
     @property
-    def duracion_semanas(self):
+    def duracion_semanas(self) -> int:
         return self._duracion_semanas
 
     @duracion_semanas.setter
-    def duracion_semanas(self, valor):
+    def duracion_semanas(self, valor: int) -> None:
         if (
             not isinstance(valor, int)
             or isinstance(valor, bool)
@@ -118,11 +119,11 @@ class Rutina:
         self._duracion_semanas = valor
 
     @property
-    def creado_por(self):
+    def creado_por(self) -> Optional[int]:
         return self._creado_por
 
     @creado_por.setter
-    def creado_por(self, valor):
+    def creado_por(self, valor: Optional[int]) -> None:
         if valor is not None and (
             not isinstance(valor, int)
             or isinstance(valor, bool)
@@ -135,26 +136,27 @@ class Rutina:
         self._creado_por = valor
 
     @property
-    def fecha_creacion(self):
+    def fecha_creacion(self) -> date:
         return self._fecha_creacion
 
     @fecha_creacion.setter
-    def fecha_creacion(self, valor):
+    def fecha_creacion(self, valor: Optional[date]) -> None:
         self._fecha_creacion = valor or date.today()
 
     @property
-    def ejercicios(self):
+    def ejercicios(self) -> Tuple[EjercicioCardio, ...]:
         return tuple(self._ejercicios)
 
     @property
-    def id_ejercicios(self):
+    def id_ejercicios(self) -> Tuple[int, ...]:
         return tuple(
             ejercicio.id_ejercicio
             for ejercicio in self._ejercicios
             if ejercicio.id_ejercicio is not None
         )
 
-    def agregar_ejercicio(self, ejercicio):
+#==Metodos de negocio==
+    def agregar_ejercicio(self, ejercicio: EjercicioCardio) -> None:
         if not isinstance(ejercicio, EjercicioCardio):
             raise TypeError(
                 "Solo se pueden agregar objetos de tipo "
@@ -168,7 +170,7 @@ class Rutina:
 
         self._ejercicios.append(ejercicio)
 
-    def eliminar_ejercicio(self, ejercicio):
+    def eliminar_ejercicio(self, ejercicio: EjercicioCardio) -> None:
         if not isinstance(ejercicio, EjercicioCardio):
             raise TypeError(
                 "Solo se pueden eliminar objetos de tipo "
@@ -182,13 +184,14 @@ class Rutina:
 
         self._ejercicios.remove(ejercicio)
 
-    def calcular_duracion_total(self):
+    def calcular_duracion_total(self) -> int:
         return sum(
             ejercicio.duracion_minutos
             for ejercicio in self._ejercicios
         )
 
-    def __repr__(self):
+#==Representacion==
+    def __repr__(self) -> str:
         return (
             f"Rutina(id_rutina={self.id_rutina}, "
             f"nombre='{self.nombre}', "

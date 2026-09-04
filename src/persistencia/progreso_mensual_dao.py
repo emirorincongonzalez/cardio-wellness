@@ -1,137 +1,216 @@
 from datetime import date
 from decimal import Decimal
-import importlib
-from pathlib import Path
-import sqlite3
+from typing import List, Optional, Tuple
 
+from psycopg2 import IntegrityError
 
-def _obtener_conexion_default():
-    try:
-        modulo = importlib.import_module("src.persistencia.conexion")
-        if hasattr(modulo, "ConexionBD"):
-            return getattr(modulo, "ConexionBD")()
-    except Exception:
-        pass
-    Path("database").mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect("database/cardio.db", check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    return conn
+from src.modelos.progreso_mensual import ProgresoMensual
+from src.persistencia.conexion_bd import ConexionBD
 
 
 class ProgresoMensualDAO:
+    """
+    Data Access Object para la entidad ProgresoMensual.
+    Gestiona la persistencia del progreso mensual de los clientes.
+    """
 
-    def __init__(self, conexion_bd=None):
-        self.conexion_bd = conexion_bd if conexion_bd is not None else _obtener_conexion_default()
+    def __init__(self) -> None:
+        """Inicializa el DAO con la conexión Singleton."""
+        self._bd = ConexionBD.obtener_instancia()
 
-    def _get_connection(self):
-        if hasattr(self.conexion_bd, "obtener_conexion"):
-            return self.conexion_bd.obtener_conexion()
-        return self.conexion_bd
-
-    def guardar(self, progreso):
-        id_cliente = getattr(progreso, "id_cliente", None) or getattr(progreso, "id_usuario", None)
-        mes = getattr(progreso, "mes", None) or date.today().month
-        anio = getattr(progreso, "anio", None) or getattr(progreso, "año", None) or date.today().year
-        peso_registrado = getattr(progreso, "peso_registrado", None) or getattr(progreso, "peso", None) or Decimal("0.0")
-        total_sesiones = getattr(progreso, "total_sesiones", None) or getattr(progreso, "sesiones_completadas", 0)
-        total_minutos = getattr(progreso, "total_minutos", None) or getattr(progreso, "minutos_entrenados", 0)
-        total_calorias = getattr(progreso, "total_calorias", None) or getattr(progreso, "calorias_quemadas", Decimal("0.0"))
-        observaciones = getattr(progreso, "observaciones", "") or ""
-
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        sql = """
-            INSERT INTO progreso_mensual (
-                id_cliente, mes, anio, peso_registrado, total_sesiones,
-                total_minutos, total_calorias, observaciones
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    def guardar(self, progreso: ProgresoMensual) -> ProgresoMensual:
         """
-        cursor.execute(
-            sql,
-            (
-                id_cliente,
-                mes,
-                anio,
-                float(peso_registrado),
-                total_sesiones,
-                total_minutos,
-                float(total_calorias),
-                observaciones,
-            ),
-        )
-        conn.commit()
+        Guarda un nuevo registro de progreso mensual en la base de datos.
+        Retorna el progreso con el ID generado.
+        """
+        self._bd.abrir_conexion()
 
-        id_generado = cursor.lastrowid
         try:
-            setattr(progreso, "id_progreso", id_generado)
+            with self._bd._conexion.cursor() as cursor:
+                # Asegurar que mes sea el primer día del mes
+                mes = progreso.mes.replace(day=1)
+
+                sql = """
+                    INSERT INTO progreso_mensual (
+                        id_cliente,
+                        mes,
+                        peso,
+                        sesiones_completadas,
+                        sesiones_planificadas,
+                        porcentaje_cumplimiento
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    RETURNING id_progreso
+                """
+                cursor.execute(
+                    sql,
+                    (
+                        progreso.id_cliente,
+                        mes,
+                        progreso.peso,
+                        progreso.sesiones_completadas,
+                        progreso.sesiones_planificadas,
+                        progreso.porcentaje_cumplimiento,
+                    ),
+                )
+                progreso.id_progreso = cursor.fetchone()[0]
+                progreso.mes = mes  # Actualizar el objeto con el mes normalizado
+
+            self._bd._conexion.commit()
+            return progreso
+
+        except IntegrityError as error:
+            self._bd._conexion.rollback()
+            if error.pgcode == "23503":
+                raise ValueError("El cliente referenciado no existe.") from error
+            if error.pgcode == "23505":
+                raise ValueError("Ya existe un registro de progreso para este cliente y mes.") from error
+            raise ValueError("No se pudo guardar el progreso por una restricción de integridad.") from error
+
         except Exception:
-            pass
+            self._bd._conexion.rollback()
+            raise
 
-        return progreso
+    def buscar_por_id(self, id_progreso: int) -> Optional[ProgresoMensual]:
+        """Busca un registro de progreso por su ID."""
+        self._bd.abrir_conexion()
+        try:
+            with self._bd._conexion.cursor() as cursor:
+                sql = """
+                    SELECT
+                        id_progreso,
+                        id_cliente,
+                        mes,
+                        peso,
+                        sesiones_completadas,
+                        sesiones_planificadas,
+                        porcentaje_cumplimiento
+                    FROM progreso_mensual
+                    WHERE id_progreso = %s
+                """
+                cursor.execute(sql, (id_progreso,))
+                fila = cursor.fetchone()
+                if fila is None:
+                    return None
+                return self._crear_progreso_desde_fila(fila)
+        except Exception:
+            raise
 
-    def actualizar(self, progreso):
-        id_progreso = getattr(progreso, "id_progreso", None) or getattr(progreso, "id", None)
-        peso_registrado = getattr(progreso, "peso_registrado", None) or getattr(progreso, "peso", None)
-        total_sesiones = getattr(progreso, "total_sesiones", None) or getattr(progreso, "sesiones_completadas", 0)
-        total_minutos = getattr(progreso, "total_minutos", None) or getattr(progreso, "minutos_entrenados", 0)
-        total_calorias = getattr(progreso, "total_calorias", None) or getattr(progreso, "calorias_quemadas", Decimal("0.0"))
-        observaciones = getattr(progreso, "observaciones", "") or ""
-
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        sql = """
-            UPDATE progreso_mensual
-            SET peso_registrado = ?, total_sesiones = ?, total_minutos = ?,
-                total_calorias = ?, observaciones = ?
-            WHERE id_progreso = ?
+    def buscar_por_cliente(self, id_cliente: int) -> List[ProgresoMensual]:
         """
-        cursor.execute(
-            sql,
-            (
-                float(peso_registrado) if peso_registrado is not None else None,
-                total_sesiones,
-                total_minutos,
-                float(total_calorias) if total_calorias is not None else None,
-                observaciones,
-                id_progreso,
-            ),
-        )
-        conn.commit()
-        return cursor.rowcount > 0
-
-    def buscar_por_cliente(self, id_cliente):
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        sql = """
-            SELECT 
-                id_progreso, id_cliente, mes, anio, peso_registrado,
-                total_sesiones, total_minutos, total_calorias, observaciones
-            FROM progreso_mensual
-            WHERE id_cliente = ?
-            ORDER BY anio DESC, mes DESC, id_progreso DESC
+        Lista todo el historial de progreso de un cliente,
+        ordenado por mes descendente.
         """
-        cursor.execute(sql, (id_cliente,))
-        filas = cursor.fetchall()
+        self._bd.abrir_conexion()
+        try:
+            with self._bd._conexion.cursor() as cursor:
+                sql = """
+                    SELECT
+                        id_progreso,
+                        id_cliente,
+                        mes,
+                        peso,
+                        sesiones_completadas,
+                        sesiones_planificadas,
+                        porcentaje_cumplimiento
+                    FROM progreso_mensual
+                    WHERE id_cliente = %s
+                    ORDER BY mes DESC, id_progreso DESC
+                """
+                cursor.execute(sql, (id_cliente,))
+                filas = cursor.fetchall()
+                return [self._crear_progreso_desde_fila(fila) for fila in filas]
+        except Exception:
+            raise
 
-        columnas = [
-            "id_progreso", "id_cliente", "mes", "anio", "peso_registrado",
-            "total_sesiones", "total_minutos", "total_calorias", "observaciones",
-        ]
-
-        resultado = []
-        for fila in filas:
-            if isinstance(fila, sqlite3.Row):
-                resultado.append(dict(fila))
-            elif isinstance(fila, dict):
-                resultado.append(fila)
-            else:
-                resultado.append(dict(zip(columnas, fila)))
-
-        return resultado
-
-    # Alias
-    def listar_por_cliente(self, id_cliente):
+    # Alias para mantener compatibilidad con posibles controladores
+    def listar_por_cliente(self, id_cliente: int) -> List[ProgresoMensual]:
+        """Alias de buscar_por_cliente."""
         return self.buscar_por_cliente(id_cliente)
+
+    def actualizar(self, progreso: ProgresoMensual) -> ProgresoMensual:
+        """
+        Actualiza un registro de progreso existente.
+        Requiere que el progreso tenga un ID.
+        """
+        if progreso.id_progreso is None:
+            raise ValueError("El progreso debe tener un ID para actualizarse.")
+
+        self._bd.abrir_conexion()
+        try:
+            with self._bd._conexion.cursor() as cursor:
+                mes = progreso.mes.replace(day=1)
+
+                sql = """
+                    UPDATE progreso_mensual
+                    SET mes = %s,
+                        peso = %s,
+                        sesiones_completadas = %s,
+                        sesiones_planificadas = %s,
+                        porcentaje_cumplimiento = %s
+                    WHERE id_progreso = %s
+                """
+                cursor.execute(
+                    sql,
+                    (
+                        mes,
+                        progreso.peso,
+                        progreso.sesiones_completadas,
+                        progreso.sesiones_planificadas,
+                        progreso.porcentaje_cumplimiento,
+                        progreso.id_progreso,
+                    ),
+                )
+                if cursor.rowcount == 0:
+                    raise ValueError("No se encontró el registro de progreso.")
+
+            self._bd._conexion.commit()
+            progreso.mes = mes
+            return progreso
+
+        except IntegrityError as error:
+            self._bd._conexion.rollback()
+            if error.pgcode == "23505":
+                raise ValueError("Ya existe un registro para este cliente y mes.") from error
+            raise ValueError("No se pudo actualizar el progreso por una restricción de integridad.") from error
+
+        except Exception:
+            self._bd._conexion.rollback()
+            raise
+
+    def eliminar_por_id(self, id_progreso: int) -> bool:
+        """
+        Elimina un registro de progreso por su ID.
+        Retorna True si se eliminó, False si no existía.
+        """
+        self._bd.abrir_conexion()
+        try:
+            with self._bd._conexion.cursor() as cursor:
+                cursor.execute(
+                    """
+                    DELETE FROM progreso_mensual
+                    WHERE id_progreso = %s
+                    """,
+                    (id_progreso,),
+                )
+                eliminado = cursor.rowcount > 0
+
+            self._bd._conexion.commit()
+            return eliminado
+
+        except Exception:
+            self._bd._conexion.rollback()
+            raise
+
+    @staticmethod
+    def _crear_progreso_desde_fila(fila: Tuple) -> ProgresoMensual:
+        """Crea un objeto ProgresoMensual desde una fila de la BD."""
+        return ProgresoMensual(
+            id_progreso=fila[0],
+            id_cliente=fila[1],
+            mes=fila[2],
+            peso=fila[3],
+            sesiones_completadas=fila[4],
+            sesiones_planificadas=fila[5],
+            porcentaje_cumplimiento=fila[6],
+        )

@@ -1,161 +1,60 @@
-﻿from datetime import date, datetime
+﻿from datetime import date
 from decimal import Decimal
-import importlib
-import inspect
-from pathlib import Path
+from typing import List, Optional
+
+from src.controladores.control_base import ControlBase
+from src.modelos.progreso_mensual import ProgresoMensual
+from src.modelos.rutina import Rutina
+from src.persistencia.progreso_mensual_dao import ProgresoMensualDAO
+from src.persistencia.sesion_entrenamiento_dao import SesionEntrenamientoDAO
 
 
-def _obtener_progreso_dao_default():
-    for ruta in ("src.persistencia.progreso_mensual_dao", "src.persistencia.progreso_dao"):
-        try:
-            modulo = importlib.import_module(ruta)
-            if hasattr(modulo, "ProgresoMensualDAO"):
-                return getattr(modulo, "ProgresoMensualDAO")()
-        except ImportError:
-            continue
-    return None
-
-
-def _obtener_sesion_dao_default():
-    for ruta in ("src.persistencia.sesion_entrenamiento_dao", "src.persistencia.sesion_dao"):
-        try:
-            modulo = importlib.import_module(ruta)
-            if hasattr(modulo, "SesionEntrenamientoDAO"):
-                return getattr(modulo, "SesionEntrenamientoDAO")()
-        except ImportError:
-            continue
-    return None
-
-
-def _obtener_clase_progreso():
-    for ruta in ("src.modelos.progreso_mensual", "src.modelos.progreso"):
-        try:
-            modulo = importlib.import_module(ruta)
-            for attr in ("ProgresoMensual", "Progreso"):
-                if hasattr(modulo, attr):
-                    return getattr(modulo, attr)
-        except ImportError:
-            continue
-    return None
-
-
-def _extraer_id(objeto, *nombres_atributos):
-    if isinstance(objeto, int) and not isinstance(objeto, bool):
-        return objeto
-    if isinstance(objeto, dict):
-        for nombre in nombres_atributos:
-            if nombre in objeto:
-                return objeto[nombre]
-    for nombre in nombres_atributos:
-        if hasattr(objeto, nombre):
-            val = getattr(objeto, nombre)
-            if isinstance(val, int) and not isinstance(val, bool):
-                return val
-    return None
-
-
-def _instanciar_progreso_mensual(
-    id_cliente,
-    mes,
-    anio,
-    peso_registrado=None,
-    total_sesiones=0,
-    total_minutos=0,
-    total_calorias=Decimal("0.0"),
-    observaciones="",
-    id_progreso=None,
-):
-    cls_prog = _obtener_clase_progreso()
-    if cls_prog is None:
-        return {
-            "id_progreso": id_progreso,
-            "id_cliente": id_cliente,
-            "mes": mes,
-            "anio": anio,
-            "peso_registrado": peso_registrado,
-            "total_sesiones": total_sesiones,
-            "total_minutos": total_minutos,
-            "total_calorias": total_calorias,
-            "observaciones": observaciones,
-        }
-
-    sig = inspect.signature(cls_prog.__init__)
-    params = sig.parameters
-
-    valores_base = {
-        "id_progreso": id_progreso,
-        "id_cliente": id_cliente,
-        "id_usuario": id_cliente,
-        "cliente": id_cliente,
-        "mes": mes,
-        "anio": anio,
-        "año": anio,
-        "peso_registrado": peso_registrado,
-        "peso": peso_registrado,
-        "total_sesiones": total_sesiones,
-        "sesiones_completadas": total_sesiones,
-        "total_minutos": total_minutos,
-        "minutos_entrenados": total_minutos,
-        "total_calorias": total_calorias,
-        "calorias_quemadas": total_calorias,
-        "observaciones": observaciones or "",
-    }
-
-    kwargs = {}
-    for param_name, param in params.items():
-        if param_name == "self":
-            continue
-        if param_name in valores_base and valores_base[param_name] is not None:
-            kwargs[param_name] = valores_base[param_name]
-        elif param.default is inspect.Parameter.empty:
-            kwargs[param_name] = None
-
-    return cls_prog(**kwargs)
-
-
-class ControlProgreso:
+class ControlProgreso(ControlBase):
+    """
+    Controlador para la gestión del progreso de los clientes.
+    Coordina el cálculo de resúmenes, impacto calórico y generación de progreso mensual.
+    """
 
     def __init__(
         self,
-        progreso_dao=None,
-        sesion_dao=None,
-        ruta_log="logs/LOG_CARDIO.txt",
-    ):
-        self.progreso_dao = progreso_dao if progreso_dao is not None else _obtener_progreso_dao_default()
-        self.sesion_dao = sesion_dao if sesion_dao is not None else _obtener_sesion_dao_default()
-        self.ruta_log = Path(ruta_log)
+        progreso_dao: Optional[ProgresoMensualDAO] = None,
+        sesion_dao: Optional[SesionEntrenamientoDAO] = None,
+        ruta_log: str = "logs/LOG_CARDIO.txt"
+    ) -> None:
+        """
+        Inicializa el controlador de progreso.
 
-    def _registrar_auditoria(self, usuario, accion):
-        try:
-            self.ruta_log.parent.mkdir(parents=True, exist_ok=True)
-            fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            usuario_str = "SISTEMA" if usuario is None else str(usuario)
-            linea_log = f"{fecha_actual}, {usuario_str}, {accion}\n"
-            with open(self.ruta_log, mode="a", encoding="utf-8") as archivo:
-                archivo.write(linea_log)
-        except Exception:
-            pass
+        Args:
+            progreso_dao (ProgresoMensualDAO, optional): DAO de progreso mensual.
+            sesion_dao (SesionEntrenamientoDAO, optional): DAO de sesiones.
+            ruta_log (str): Ruta al archivo de LOG para auditoría.
+        """
+        super().__init__(ruta_log=ruta_log)
+        self.progreso_dao = progreso_dao or ProgresoMensualDAO()
+        self.sesion_dao = sesion_dao or SesionEntrenamientoDAO()
 
-    def calcular_resumen_cliente(self, cliente):
-        id_cliente = _extraer_id(cliente, "id_cliente", "id_usuario", "id")
-        if not isinstance(id_cliente, int) or isinstance(id_cliente, bool) or id_cliente <= 0:
-            raise ValueError("El id del cliente debe ser un entero positivo.")
+    def calcular_resumen_cliente(self, id_cliente: int) -> dict:
+        """
+        Calcula un resumen del progreso de un cliente basado en sus sesiones.
 
-        sesiones = []
-        if self.sesion_dao and hasattr(self.sesion_dao, "listar_por_cliente"):
-            sesiones = self.sesion_dao.listar_por_cliente(id_cliente)
+        Args:
+            id_cliente (int): ID del cliente.
+
+        Returns:
+            dict: Resumen con total_sesiones, total_minutos, total_calorias.
+        """
+        if not isinstance(id_cliente, int) or id_cliente <= 0:
+            raise ValueError("El ID del cliente debe ser un entero positivo.")
+
+        # Obtener sesiones del cliente
+        sesiones = self.sesion_dao.listar_por_cliente(id_cliente)
 
         total_sesiones = len(sesiones)
-        total_minutos = 0
-        total_calorias = Decimal("0.0")
+        total_minutos = sum(s.duracion_real for s in sesiones)
+        total_calorias = sum(s.calorias_quemadas for s in sesiones)
 
-        for s in sesiones:
-            minutos = s.get("duracion_real", 0) if isinstance(s, dict) else getattr(s, "duracion_real", 0)
-            calorias = s.get("calorias_quemadas", 0) if isinstance(s, dict) else getattr(s, "calorias_quemadas", 0)
-            total_minutos += int(minutos or 0)
-            total_calorias += Decimal(str(calorias or 0))
-
-        self._registrar_auditoria(f"CLIENTE_{id_cliente}", "CONSULTA_PROGRESO")
+        # Registrar auditoría
+        self._registrar_log(f"CLIENTE_{id_cliente}", "CONSULTA_PROGRESO")
 
         return {
             "id_cliente": id_cliente,
@@ -164,79 +63,103 @@ class ControlProgreso:
             "total_calorias": total_calorias,
         }
 
-    # Alias
-    def obtener_resumen_cliente(self, cliente):
-        return self.calcular_resumen_cliente(cliente)
+    def obtener_resumen_cliente(self, id_cliente: int) -> dict:
+        """Alias de calcular_resumen_cliente."""
+        return self.calcular_resumen_cliente(id_cliente)
 
-    def calcular_impacto_calorico_rutina(self, rutina, usuario_consulta=None):
-        ejercicios = []
-        if hasattr(rutina, "ejercicios"):
-            ejercicios = rutina.ejercicios or []
-        elif isinstance(rutina, dict) and "ejercicios" in rutina:
-            ejercicios = rutina["ejercicios"] or []
+    def calcular_impacto_calorico_rutina(self, rutina: Rutina) -> Decimal:
+        """
+        Calcula el total de calorías estimadas de una rutina.
+
+        Args:
+            rutina (Rutina): Objeto Rutina.
+
+        Returns:
+            Decimal: Total de calorías estimadas.
+        """
+        if not isinstance(rutina, Rutina):
+            raise TypeError("Se requiere una instancia de Rutina.")
 
         total_calorias = Decimal("0.0")
-        for ej in ejercicios:
-            cal = getattr(ej, "calorias_estimadas", None) or (ej.get("calorias_estimadas") if isinstance(ej, dict) else None) or 0
-            total_calorias += Decimal(str(cal))
+        for ejercicio in rutina.ejercicios:
+            total_calorias += ejercicio.calorias_estimadas
 
-        id_rutina = _extraer_id(rutina, "id_rutina", "id")
-        self._registrar_auditoria(usuario_consulta or f"RUTINA_{id_rutina or 'DESCONOCIDA'}", "CONSULTA_IMPACTO")
-
+        self._registrar_log(f"RUTINA_{rutina.id_rutina}", "CONSULTA_IMPACTO")
         return total_calorias
 
-    # Alias
-    def obtener_impacto_rutina(self, rutina, usuario_consulta=None):
-        return self.calcular_impacto_calorico_rutina(rutina, usuario_consulta)
+    def obtener_impacto_rutina(self, rutina: Rutina) -> Decimal:
+        """Alias de calcular_impacto_calorico_rutina."""
+        return self.calcular_impacto_calorico_rutina(rutina)
 
     def generar_progreso_mensual(
         self,
-        cliente,
-        mes=None,
-        anio=None,
-        peso_actual=None,
-        observaciones="",
-    ):
-        id_cliente = _extraer_id(cliente, "id_cliente", "id_usuario", "id")
-        if not isinstance(id_cliente, int) or isinstance(id_cliente, bool) or id_cliente <= 0:
-            raise ValueError("El id del cliente debe ser un entero positivo.")
+        id_cliente: int,
+        peso: float,
+        mes: Optional[date] = None,
+        sesiones_completadas: Optional[int] = None,
+        sesiones_planificadas: Optional[int] = None,
+    ) -> ProgresoMensual:
+        """
+        Genera un registro de progreso mensual para un cliente.
 
-        if self.progreso_dao is None:
-            raise RuntimeError("El DAO de progreso mensual no está disponible.")
+        Args:
+            id_cliente (int): ID del cliente.
+            peso (float): Peso actual del cliente.
+            mes (date, optional): Mes del progreso (por defecto, mes actual).
+            sesiones_completadas (int, optional): Sesiones completadas en el mes.
+            sesiones_planificadas (int, optional): Sesiones planificadas en el mes.
 
-        hoy = date.today()
-        mes_val = mes or hoy.month
-        anio_val = anio or hoy.year
+        Returns:
+            ProgresoMensual: Registro de progreso guardado.
+        """
+        if not isinstance(id_cliente, int) or id_cliente <= 0:
+            raise ValueError("El ID del cliente debe ser un entero positivo.")
+        if not isinstance(peso, (int, float, Decimal)) or peso <= 0:
+            raise ValueError("El peso debe ser un número mayor que cero.")
 
-        resumen = self.calcular_resumen_cliente(cliente)
+        # Usar mes actual si no se especifica
+        mes_actual = mes or date.today().replace(day=1)
 
-        peso_val = peso_actual
-        if peso_val is None and hasattr(cliente, "peso"):
-            peso_val = cliente.peso
+        # Obtener sesiones del mes para calcular cumplimiento
+        sesiones = self.sesion_dao.listar_por_cliente(id_cliente)
+        sesiones_mes = [s for s in sesiones if s.fecha >= mes_actual and s.fecha < mes_actual.replace(day=28) + date.resolution * 4]
 
-        progreso = _instanciar_progreso_mensual(
+        completadas = sesiones_completadas if sesiones_completadas is not None else len(sesiones_mes)
+        planificadas = sesiones_planificadas if sesiones_planificadas is not None else 4  # Valor por defecto
+
+        # Crear objeto ProgresoMensual
+        progreso = ProgresoMensual(
             id_cliente=id_cliente,
-            mes=mes_val,
-            anio=anio_val,
-            peso_registrado=peso_val,
-            total_sesiones=resumen["total_sesiones"],
-            total_minutos=resumen["total_minutos"],
-            total_calorias=resumen["total_calorias"],
-            observaciones=observaciones,
+            mes=mes_actual,
+            peso=peso,
+            sesiones_completadas=completadas,
+            sesiones_planificadas=planificadas,
         )
+        progreso.calcular_cumplimiento()
 
-        progreso_guardado = self.progreso_dao.guardar(progreso)
-        self._registrar_auditoria(f"CLIENTE_{id_cliente}", "GENERAR_PROGRESO")
-        return progreso_guardado
+        # Guardar y registrar LOG
+        try:
+            progreso_guardado = self.progreso_dao.guardar(progreso)
+            self._registrar_log(f"CLIENTE_{id_cliente}", "GENERAR_PROGRESO")
+            return progreso_guardado
+        except ValueError as error:
+            raise ValueError(f"Error al generar el progreso: {error}") from error
+        except Exception as error:
+            raise RuntimeError(f"Error inesperado al generar progreso: {error}") from error
 
-    def consultar_progreso(self, cliente):
-        id_cliente = _extraer_id(cliente, "id_cliente", "id_usuario", "id")
-        if not isinstance(id_cliente, int) or isinstance(id_cliente, bool) or id_cliente <= 0:
-            raise ValueError("El id del cliente debe ser un entero positivo.")
+    def consultar_progreso(self, id_cliente: int) -> List[ProgresoMensual]:
+        """
+        Consulta el historial de progreso mensual de un cliente.
 
-        if self.progreso_dao is None:
-            raise RuntimeError("El DAO de progreso mensual no está disponible.")
+        Args:
+            id_cliente (int): ID del cliente.
+
+        Returns:
+            List[ProgresoMensual]: Lista de registros de progreso.
+        """
+        if not isinstance(id_cliente, int) or id_cliente <= 0:
+            raise ValueError("El ID del cliente debe ser un entero positivo.")
 
         historial = self.progreso_dao.buscar_por_cliente(id_cliente)
-        self._registrar_auditoria(f"CLIENTE_{id_cliente}", "CONSULTA_PROGRESO")
+        self._registrar_log(f"CLIENTE_{id_cliente}", "CONSULTA_PROGRESO")
         return historial

@@ -60,10 +60,10 @@ class ControlAutenticacion(ControlBase):
         if usuario:
             self.usuario_actual = usuario
             correo = getattr(usuario, "correo_electronico", correo_limpio)
-            self._registrar_log(correo, "LOGIN EXITOSO")
+            self._registrar_log(correo, "LOGIN_EXITOSO")
             return usuario
         else:
-            self._registrar_log(correo_limpio, "LOGIN FALLIDO")
+            self._registrar_log(correo_limpio, "LOGIN_FALLIDO")
             return None
 
     def cerrar_sesion(self, usuario: Optional[Usuario] = None) -> bool:

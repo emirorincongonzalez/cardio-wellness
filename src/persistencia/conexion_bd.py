@@ -109,6 +109,7 @@ class ConexionBD:
         try:
             with self._obtener_cursor() as cursor:
                 cursor.execute(sql, parametros or ())
+                self._conexion.commit()
                 return cursor.rowcount > 0
         except psycopg2.Error as e:
             self._conexion.rollback() # Revertir cambios en caso de error

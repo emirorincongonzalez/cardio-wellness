@@ -1,0 +1,356 @@
+================================================================
+DOCUMENTACIÓN DE LA CAPA DE CONTROL
+Sistema: Cardio Wellness Manager
+Fecha: 07/09/2026
+Estado: DEFINITIVA
+================================================================
+
+1. INTRODUCCIÓN
+----------------------------------------------------------------
+La capa de control constituye el "cerebro" del sistema. Su
+responsabilidad es orquestar los casos de uso, validar las
+entradas del usuario, aplicar las reglas de negocio y coordinar
+la interacción entre la interfaz de usuario (Tkinter) y la capa
+de persistencia (DAOs). Actúa como un intermediario que asegura
+que la lógica de negocio se mantenga independiente de los detalles
+de presentación y almacenamiento.
+
+Esta capa ha sido implementada siguiendo los principios de la
+Programación Orientada a Objetos (POO) y está alineada con el
+Diagrama de Clases de Diseño (DCD). Todos los controladores
+heredan de una clase base que centraliza el registro de
+auditoría, cumpliendo con el requisito de LOG de actividades.
+
+ARCHIVOS QUE COMPONEN LA CAPA DE CONTROL:
+- control_base.py          → Clase base para todos los controladores.
+- control_autenticacion.py → Gestión de login/logout.
+- control_clientes.py      → CRUD de clientes.
+- control_ejercicios.py    → CRUD de ejercicios.
+- control_rutinas.py       → CRUD de rutinas y asignaciones.
+- control_sesiones.py      → Registro y consulta de sesiones.
+- control_progreso.py      → Cálculo de progreso y reportes.
+
+Todos estos archivos están disponibles en la carpeta `src/controladores/`
+y se consideran definitivos. La capa está lista para su integración
+con la interfaz de usuario (Eliam) y para las pruebas de integración
+(Juan).
+
+================================================================
+
+2. FUNDAMENTOS DE POO APLICADOS EN LA CAPA DE CONTROL
+----------------------------------------------------------------
+A continuación se detallan los principios fundamentales de la
+Programación Orientada a Objetos y cómo se han aplicado en la
+capa de control.
+
+2.1 ENCAPSULAMIENTO
+----------------------------------------------------------------
+El encapsulamiento consiste en ocultar los detalles internos de
+una clase y exponer solo lo necesario a través de una interfaz
+pública. En la capa de control, los atributos de los controladores
+son privados (prefijo `_`) y se accede a ellos mediante métodos
+públicos.
+
+APLICACIÓN EN EL CÓDIGO:
+```python
+class ControlClientes(ControlBase):
+    def __init__(self, cliente_dao: Optional[ClienteDAO] = None):
+        self._cliente_dao = cliente_dao or ClienteDAO()  # Atributo privado
+
+    def registrar_cliente(self, ...) -> Cliente:
+        # Método público que expone la funcionalidad
+        return self._cliente_dao.guardar(cliente)
+
+El usuario del controlador no necesita saber cómo se guarda un
+cliente en la base de datos; solo llama a registrar_cliente()
+y confía en que el controlador maneje el resto.
+
+2.2 ABSTRACCIÓN
+----------------------------------------------------------------
+La abstracción permite definir interfaces generales que ocultan
+los detalles de implementación. En la capa de control, la clase
+base ControlBase define la interfaz común para todos los
+controladores (el método _registrar_log), y cada controlador
+especializado implementa su lógica específica.
+
+APLICACIÓN EN EL CÓDIGO:
+class ControlBase:
+    def _registrar_log(self, usuario: str, accion: str) -> None:
+        # Lógica genérica de registro de auditoría
+        pass
+
+class ControlAutenticacion(ControlBase):
+    # Hereda _registrar_log y añade su propia lógica de autenticación
+    pass
+
+Los controladores especializados abstraen la complejidad de cada
+caso de uso, presentando una interfaz simple y clara para la
+capa de interfaz.
+
+2.3 HERENCIA
+----------------------------------------------------------------
+La herencia permite crear nuevas clases a partir de otras,
+reutilizando atributos y métodos. En la capa de control, todos
+los controladores heredan de ControlBase, lo que garantiza que
+todos tengan la capacidad de registrar auditoría sin duplicar
+código.
+
+APLICACIÓN EN EL CÓDIGO:
+class ControlBase:
+    def _registrar_log(self, usuario: str, accion: str) -> None:
+        # Código centralizado de LOG
+
+class ControlClientes(ControlBase):
+    # Hereda _registrar_log y añade su propia lógica
+    def registrar_cliente(self, ...) -> Cliente:
+        self._registrar_log(correo, "REGISTRO_CLIENTE")  # Uso directo
+        # ...
+Esto evita que cada controlador tenga que implementar su propio
+sistema de LOG, facilitando el mantenimiento y garantizando
+consistencia.
+
+2.4 POLIMORFISMO
+----------------------------------------------------------------
+El polimorfismo permite que objetos de diferentes clases respondan
+al mismo mensaje de forma distinta. En la capa de control, los
+controladores especializados pueden ser tratados de forma uniforme
+a través de su clase base ControlBase.
+
+APLICACIÓN EN EL CÓDIGO:
+def ejecutar_operacion(controlador: ControlBase, ...):
+    # Cualquier controlador que herede de ControlBase puede ser usado
+    controlador._registrar_log("SISTEMA", "OPERACION")
+
+Aunque en la práctica no se usa polimorfismo entre controladores,
+el diseño lo permite y facilita futuras extensiones.
+
+2.5 PRINCIPIO DE RESPONSABILIDAD ÚNICA (SRP)
+----------------------------------------------------------------
+Cada controlador tiene una responsabilidad única y bien definida:
+
+    ControlAutenticacion: solo maneja autenticación.
+
+    ControlClientes: solo maneja clientes.
+
+    ControlRutinas: solo maneja rutinas y asignaciones.
+
+    ControlEjercicios: solo maneja ejercicios.
+
+    ControlSesiones: solo maneja sesiones.
+
+    ControlProgreso: solo maneja progreso.
+
+Esto facilita el mantenimiento y la prueba de cada componente de
+forma aislada.
+
+2.6 INYECCIÓN DE DEPENDENCIAS
+----------------------------------------------------------------
+Todos los controladores reciben sus dependencias (DAOs) en el
+constructor, en lugar de crearlas internamente. Esto facilita:
+
+    Pruebas unitarias (se pueden pasar mocks).
+
+    Cambios futuros (se puede reemplazar un DAO sin modificar el
+    controlador).
+
+    Mayor flexibilidad y desacoplamiento.
+
+APLICACIÓN EN EL CÓDIGO:
+class ControlClientes(ControlBase):
+    def __init__(self, cliente_dao: Optional[ClienteDAO] = None):
+        self._cliente_dao = cliente_dao or ClienteDAO()  # Inyección
+Si no se proporciona un DAO, se usa el valor por defecto, pero
+se puede pasar uno personalizado para pruebas.
+
+2.7 MANEJO DE EXCEPCIONES Y VALIDACIONES
+----------------------------------------------------------------
+Los controladores validan las entradas del usuario y manejan las
+excepciones de las capas inferiores (DAOs), transformándolas en
+errores de negocio claros para la interfaz.
+
+APLICACIÓN EN EL CÓDIGO:
+def registrar_cliente(self, ...) -> Cliente:
+    # Validaciones de entrada
+    if not nombre or not nombre.strip():
+        raise ValueError("El nombre no puede estar vacío.")
+
+    try:
+        cliente_guardado = self._cliente_dao.guardar(cliente)
+        self._registrar_log(correo, "REGISTRO_CLIENTE")
+        return cliente_guardado
+    except ValueError as error:
+        raise ValueError(f"Error al registrar el cliente: {error}") from error
+    except Exception as error:
+        raise RuntimeError(f"Error inesperado: {error}") from error
+
+Esto asegura que la interfaz reciba mensajes de error claros y
+que el sistema no falle silenciosamente.
+
+2.8 REGISTRO DE AUDITORÍA (LOG)
+----------------------------------------------------------------
+La capa de control implementa el registro de auditoría a través de
+ControlBase._registrar_log(). Cada acción importante (login,
+registro, eliminación, asignación, etc.) se registra en un archivo
+de texto plano (LOG_CARDIO.txt) con el formato:
+
+FECHA, USUARIO, ACCION
+
+Esto cumple con el requisito de Auditoría de Sistemas y permite
+rastrear todas las actividades del sistema.
+
+EJEMPLO DE LOG GENERADO:
+2026-09-07 10:15:30, admin@wellness.com, LOGIN_EXITOSO
+2026-09-07 10:16:45, admin@wellness.com, REGISTRO_CLIENTE
+2026-09-07 10:17:20, admin@wellness.com, ASIGNACION_RUTINA_2
+2026-09-07 10:18:10, carlos@gmail.com, LOGOUT
+
+================================================================
+
+3. ARQUITECTURA DE LA CAPA DE CONTROL
+----------------------------------------------------------------
+La capa de control se organiza en torno a una clase base y seis
+controladores especializados. Su estructura es la siguiente:
+
+┌─────────────────────────────────────────────────────────┐
+│                   ControlBase                           │                         
+│ - registrar_log(usuario, accion): void                  │
+│ - registrar_auditoria(usuario, accion): void (alias)    │
+└─────────────────────────────────────────────────────────┘
+▲
+│ (Herencia)
+┌───────────────────┼───────────────────┐
+│       │                               │
+┌───────┴───────┐ ┌───────┴───────┐ ┌───────┴───────┐
+│    Control    │ │     Control   │ │    Control    │
+│ Autenticacion │ │     Clientes  │ │   Ejercicios  │
+│   - iniciar   │ │   - registrar │ │    - crear_   │
+│     sesion()  │ │     cliente() │ │   ejercicio() │
+│   - cerrar_   │ │ - buscar_por_ │ │   - listar()  │
+│     sesion()  │ │       id()    │ │ - actualizar_ │
+│   - validar_  │ │   - listar()  │ │   ejercicio() │
+│   credenciales│ │ - actualizar_ │ │  - eliminar_  │
+│ - obtener_    │ │     cliente() │ │   ejercicio() │
+│     usuario_  │ │ - cambiar_    │ │               │
+│     actual()  │ │ contrasenia() │ │               │
+└───────────────┘ └───────────────┘ └───────────────┘
+│ │ │
+┌───────┴───────┐ ┌───────┴───────┐ ┌───────┴───────┐
+│     Control   │ │     Control   │ │     Control   │
+│     Rutinas   │ │     Sesiones  │ │     Progreso  │
+│    - crear_   │ │  - registrar_ │ │  - calcular_  │
+│     rutina()  │ │    sesion()   │ │     resumen_  │
+│ - listar()    │ │   - obtener_  │ │    cliente()  │
+│ - actualizar_ │ │    sesiones_  │ │  - calcular_  │
+│    rutina()   │ │    cliente()  │ │     impacto_  │
+│   - asignar_  │ │  - eliminar_  │ │    calorico_  │
+│    rutina()   │ │     sesion()  │ │     rutina()  │
+│ - agregar_    │ │               │ │   - generar_  │
+│ ejercicio()   │ │               │ │    progreso_  │
+│   - eliminar_ │ │               │ │    mensual()  │
+│   ejercicio() │ │               │ │  - consultar_ │
+│   - eliminar_ │ │               │ │    progreso() │
+│     rutina()  │ │               │ │               │
+└───────────────┘ └───────────────┘ └───────────────┘
+
+│
+▼
+┌───────────────────────────────┐
+│             DAOs              │
+│    (UsuarioDAO, ClienteDAO,   │
+│      RutinaDAO, EjercicioDAO, │
+│      SesionDAO, ProgresoDAO,  │
+│      AsignacionRutinaDAO)     │
+└───────────────────────────────┘
+
+================================================================
+
+4. FLUJO DE TRABAJO TÍPICO
+----------------------------------------------------------------
+    El usuario interactúa con la interfaz (Tkinter).
+
+    La interfaz llama a un método del controlador correspondiente
+    (ej. control_clientes.registrar_cliente(...)).
+
+    El controlador valida las entradas.
+
+    El controlador aplica reglas de negocio (ej. verificar si el
+    cliente ya tiene una rutina activa en asignar_rutina).
+
+    El controlador delega en el DAO correspondiente para la
+    persistencia.
+
+    El controlador registra la acción en el LOG de auditoría.
+
+    El controlador retorna el resultado a la interfaz.
+
+    La interfaz muestra el resultado al usuario (mensaje de éxito
+    o error).
+
+================================================================
+
+5. CONCURRENCIA CON EL DCD Y EL DDL
+----------------------------------------------------------------
+La capa de control está alineada con el DCD y el DDL en cuanto a
+nombres, tipos y relaciones.
+
+TABLA DE CORRESPONDENCIA:
+
+DCD (Controlador) Python (Controlador) DDL (Tablas involucradas)
+ControlAutenticacion control_autenticacion.py usuarios
+ControlClientes control_clientes.py usuarios, clientes
+ControlEjercicios control_ejercicios.py ejercicios
+ControlRutinas control_rutinas.py rutinas, rutina_ejercicios
+ControlSesiones control_sesiones.py sesiones_entrenamiento
+ControlProgreso control_progreso.py progreso_mensual
+
+Las reglas de negocio (asignación de rutinas, cálculo de
+cumplimiento, etc.) están implementadas en los controladores y
+son coherentes con los requisitos funcionales del sistema.
+
+================================================================
+
+6. CONCLUSIONES Y ESTADO ACTUAL
+----------------------------------------------------------------
+La capa de control del sistema Cardio Wellness Manager se
+encuentra completamente implementada y es funcional.
+
+CARACTERÍSTICAS DESTACADAS:
+
+    ✅ 100% alineada con el DCD.
+
+    ✅ Coherente con el DDL (PostgreSQL).
+
+    ✅ Aplica principios de POO: encapsulamiento, abstracción,
+    herencia, polimorfismo, SRP.
+
+    ✅ Inyección de dependencias para facilitar pruebas.
+
+    ✅ Validaciones robustas y manejo de excepciones.
+
+    ✅ Registro de auditoría centralizado (LOG).
+
+    ✅ Reglas de negocio clave implementadas (asignación de rutinas,
+    cálculo de cumplimiento).
+
+    ✅ Type hints y docstrings completos.
+
+    ✅ Código documentado y organizado.
+
+PRÓXIMOS PASOS:
+
+- Integración con la capa de interfaz (Tkinter) por Eliam.
+
+- Pruebas de integración por Juan.
+
+- Verificación del LOG de auditoría con al menos 3 días de
+  registros.
+
+- Pruebas funcionales y de aceptación.
+
+Este documento sirve como evidencia de que la capa de control
+ha sido desarrollada siguiendo las mejores prácticas y está lista
+para ser utilizada en las siguientes fases del proyecto.
+
+================================================================
+FIN DEL DOCUMENTO
+================================================================

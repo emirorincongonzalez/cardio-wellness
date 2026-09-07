@@ -1,0 +1,290 @@
+================================================================
+DOCUMENTACIÓN DE LA CAPA DE SERVICIOS
+Sistema: Cardio Wellness Manager
+Fecha: 07/09/2026
+Estado: DEFINITIVA
+================================================================
+
+1. INTRODUCCIÓN
+----------------------------------------------------------------
+La capa de servicios constituye el conjunto de utilidades y
+orquestadores que complementan la lógica de negocio del sistema.
+Su responsabilidad es proporcionar funcionalidades transversales
+que no pertenecen estrictamente al dominio, a la persistencia o
+al control, pero que son esenciales para el funcionamiento de la
+aplicación.
+
+Esta capa se divide en tres servicios principales:
+1. GestorSeguridad: Manejo de hashing y verificación de contraseñas.
+2. GeneradorReportesPDF: Generación de reportes en formato PDF.
+3. SistemaWellness: Orquestación de alto nivel para sugerencias,
+   cálculos y reportes.
+
+Todos estos servicios están disponibles en la carpeta `src/servicios/`
+y se consideran definitivos. Están alineados con el DCD y con los
+requisitos de auditoría (LOG de actividades, parámetro META).
+
+================================================================
+
+2. SERVICIOS IMPLEMENTADOS
+----------------------------------------------------------------
+
+2.1 GESTORSEGURIDAD (gestor_seguridad.py)
+----------------------------------------------------------------
+Propósito: Garantizar la seguridad de las contraseñas mediante
+el uso de bcrypt, un algoritmo de hashing adaptativo.
+
+CARACTERÍSTICAS DESTACADAS:
+- ✅ Configuración del factor de costo (ROUNDS) desde variables
+  de entorno (BCRYPT_ROUNDS / ROUNDS), con fallback a 12.
+- ✅ Generación de hash con salt aleatorio.
+- ✅ Verificación de contraseñas contra hash almacenado.
+- ✅ Validaciones robustas de entrada (contraseña vacía, tipos
+  incorrectos).
+- ✅ Logging de advertencias y errores (para auditoría).
+- ✅ Manejo de excepciones para evitar fallos en la verificación.
+
+APLICACIÓN EN EL CÓDIGO:
+```python
+class GestorSeguridad:
+    @staticmethod
+    def generar_hash(contrasenia: str) -> str:
+        # Genera hash bcrypt con rounds configurable
+        rounds = GestorSeguridad._obtener_rounds()
+        return bcrypt.hashpw(
+            contrasenia.encode("utf-8"),
+            bcrypt.gensalt(rounds=rounds)
+        ).decode("utf-8")
+
+    @staticmethod
+    def verificar_contrasenia(contrasenia: str, hash_guardado: str) -> bool:
+        # Verifica la contraseña contra el hash almacenado
+        return bcrypt.checkpw(
+            contrasenia.encode("utf-8"),
+            hash_guardado.encode("utf-8")
+        )
+
+USO EN EL SISTEMA:
+
+    UsuarioDAO.guardar() usa generar_hash() para hashear la
+    contraseña antes de guardarla.
+
+    UsuarioDAO.iniciar_sesion() usa verificar_contrasenia() para
+    validar credenciales.
+
+    ControlAutenticacion delega en el DAO para la verificación.
+
+================================================================
+
+2.2 GENERADORREPORTESPDF (generador_reportes_pdf.py)
+----------------------------------------------------------------
+Propósito: Generar reportes de progreso en formato PDF para los
+clientes, cumpliendo con el requisito de auditoría y proporcionando
+una salida visual y profesional.
+
+CARACTERÍSTICAS DESTACADAS:
+
+    ✅ Usa la biblioteca reportlab para crear PDFs.
+
+    ✅ Estructura clara: título, datos del cliente, resumen de
+    actividad, historial mensual.
+
+    ✅ Estilos visuales atractivos (colores, tablas, negritas).
+
+    ✅ Flexibilidad para guardar en una ruta específica o en una
+    carpeta por defecto (reportes/).
+
+    ✅ Adaptado para trabajar con objetos ProgresoMensual en lugar
+    de diccionarios (corrección realizada).
+
+    ✅ Muestra el mes en formato legible (ej. "Septiembre 2026").
+
+APLICACIÓN EN EL CÓDIGO (adaptación a objetos del dominio):
+# Antes: historial_progreso era lista de diccionarios
+# Ahora: historial_progreso es List[ProgresoMensual]
+for progreso in historial_progreso:
+    mes = progreso.mes.strftime("%B %Y")
+    peso = f"{progreso.peso:.1f}"
+    completadas = progreso.sesiones_completadas
+    planificadas = progreso.sesiones_planificadas
+    cumplimiento = f"{progreso.porcentaje_cumplimiento:.1f}%"
+    tabla_historial.append([mes, peso, str(completadas), str(planificadas), cumplimiento])
+
+USO EN EL SISTEMA:
+
+    SistemaWellness.emitir_reporte_pdf_cliente() llama a este
+    servicio para generar reportes.
+
+    Los reportes pueden incluir el parámetro META (objetivo del
+    cliente) y mostrarlo en la interfaz (pendiente de integración).
+
+================================================================
+
+2.3 SISTEMAWELLNESS (sistema_wellness.py)
+----------------------------------------------------------------
+Propósito: Orquestar funcionalidades de alto nivel que combinan
+diferentes controladores y servicios. Actúa como un "fachada" para
+operaciones complejas.
+
+CARACTERÍSTICAS DESTACADAS:
+
+    ✅ Sugerencia de rutinas basada en el objetivo del cliente
+    (motor de recomendaciones del Sprint 1).
+
+    ✅ Cálculo de diferencia de peso mensual (para el parámetro META).
+
+    ✅ Generación de reportes PDF con resumen y historial.
+
+    ✅ Registro de auditoría para todas las acciones (LOG).
+
+    ✅ Manejo de excepciones para errores de generación de PDF.
+
+    ✅ Inyección de dependencias para facilitar pruebas.
+
+APLICACIÓN EN EL CÓDIGO (métodos clave):
+
+SUGERENCIA DE RUTINAS:
+def evaluar_objetivo_y_sugerir_rutina(self, cliente: Cliente) -> Optional[Rutina]:
+    objetivo_norm = _normalizar_texto(cliente.objetivo)
+    rutinas = self.control_rutinas.listar()
+    
+    # Palabras clave para pérdida de peso
+    if any(w in objetivo_norm for w in ("PESO", "ADELGAZAR", "QUEMA")):
+        for rutina in rutinas:
+            if "QUEMA" in _normalizar_texto(rutina.nombre):
+                return rutina  # Sugerencia personalizada
+    # ... más reglas
+    return rutinas[0]  # Fallback
+
+CALCULO DE DIFERENCIA DE PESO:
+def calcular_diferencia_peso_mensual(self, id_cliente: int) -> Decimal:
+    historial = self.control_progreso.consultar_progreso(id_cliente)
+    if len(historial) < 2:
+        return Decimal("0.0")
+    reg_actual = historial[0]   # ProgresoMensual más reciente
+    reg_anterior = historial[1] # ProgresoMensual anterior
+    return reg_actual.peso - reg_anterior.peso
+
+GENERACION DE REPORTE PDF
+def emitir_reporte_pdf_cliente(self, cliente: Union[Cliente, int], ruta_archivo=None):
+    cliente_obj = self.control_clientes.buscar_por_id(id) if isinstance(cliente, int) else cliente
+    resumen = self.control_progreso.calcular_resumen_cliente(cliente_obj.id_usuario)
+    historial = self.control_progreso.consultar_progreso(cliente_obj.id_usuario)
+    return self.generador_pdf.generar_reporte_progreso_cliente(
+        cliente=cliente_obj,
+        resumen_actividad=resumen,
+        historial_progreso=historial,
+        ruta_archivo=ruta_archivo
+    )
+
+================================================================
+
+3. BUENAS PRÁCTICAS APLICADAS
+----------------------------------------------------------------
+3.1 PRINCIPIO DE RESPONSABILIDAD ÚNICA (SRP)
+
+    Cada servicio tiene una responsabilidad clara y bien definida.
+
+    GestorSeguridad solo maneja hashing y verificación.
+
+    GeneradorReportesPDF solo genera PDFs.
+
+    SistemaWellness orquesta funcionalidades de alto nivel.
+
+3.2 INYECCIÓN DE DEPENDENCIAS
+
+    Todos los servicios reciben sus dependencias en el constructor,
+    facilitando pruebas unitarias y cambios futuros.
+
+    Ejemplo: SistemaWellness recibe control_clientes, control_rutinas,
+    etc., permitiendo reemplazar implementaciones si es necesario.
+
+3.3 MANEJO DE EXCEPCIONES
+
+    Los servicios capturan y registran errores sin ocultarlos.
+
+    En SistemaWellness.emitir_reporte_pdf_cliente(), los errores
+    se registran en el LOG y se relanzan como RuntimeError.
+
+3.4 LOGGING Y AUDITORÍA
+
+    Todos los servicios heredan de ControlBase para usar
+    _registrar_log (en el caso de SistemaWellness).
+
+    Se registran acciones como: SUGERENCIA_RUTINA, REPORTE_PDF_GENERADO,
+    CALCULO_DIFERENCIA_PESO, etc.
+
+    El LOG cumple con el formato FECHA, USUARIO, ACCION (requisito
+    de Auditoría de Sistemas).
+
+3.5 TYPE HINTS Y DOCSTRINGS
+
+    Todos los métodos y clases están tipados y documentados.
+
+    Esto mejora la legibilidad y el autocompletado en el IDE.
+
+3.6 USO DE DECIMAL PARA CÁLCULOS FINANCIEROS/MÉTRICAS
+
+    En calcular_diferencia_peso_mensual, se usa Decimal para
+    evitar errores de redondeo en cálculos con decimales.
+
+================================================================
+
+4. CONCURRENCIA CON EL DCD Y EL DDL
+----------------------------------------------------------------
+Los servicios no tienen una representación directa en el DCD
+(no son clases del dominio), pero están alineados con las
+necesidades del sistema y con los requisitos de auditoría.
+
+RELACIÓN CON EL DCD:
+
+    GestorSeguridad: No está en el DCD, pero es una utilidad
+    necesaria para la seguridad (requisito no funcional).
+
+    GeneradorReportesPDF: Tampoco está en el DCD, pero es un
+    servicio de salida para reportes (requisito funcional).
+
+    SistemaWellness: Orquesta controladores del DCD (ControlClientes,
+    ControlRutinas, ControlProgreso) y proporciona funcionalidades
+    como sugerencia de rutinas y cálculo de diferencia de peso.
+
+================================================================
+
+5. CONCLUSIONES Y ESTADO ACTUAL
+
+La capa de servicios del sistema Cardio Wellness Manager se
+encuentra completamente implementada y es funcional.
+
+CARACTERÍSTICAS DESTACADAS:
+
+    ✅ GestorSeguridad robusto y configurable.
+
+    ✅ GeneradorReportesPDF adaptado a objetos del dominio.
+
+    ✅ SistemaWellness orquesta funcionalidades de alto nivel.
+
+    ✅ Todos los servicios tienen type hints y docstrings.
+
+    ✅ Inyección de dependencias para facilitar pruebas.
+
+    ✅ Manejo de excepciones y logging de auditoría.
+
+    ✅ Alineados con los requisitos de Auditoría (LOG, META).
+
+PRÓXIMOS PASOS:
+
+1. Integración con la capa de control (servicios ya usan controladores).
+
+2. Pruebas de integración por parte de Juan.
+
+3. Conexión con la interfaz de usuario (Tkinter) de Eliam.
+
+4. Verificación del LOG de auditoría con al menos 3 días de registros.
+
+Este documento sirve como evidencia de que la capa de servicios
+ha sido desarrollada siguiendo las mejores prácticas y está lista
+para ser utilizada en las siguientes fases del proyecto.
+
+================================================================
+FIN DEL DOCUMENTO
+================================================================

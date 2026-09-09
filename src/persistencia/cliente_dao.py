@@ -1,16 +1,20 @@
 from typing import List, Optional, Tuple
 from psycopg2 import IntegrityError
 
+
 from src.modelos.cliente import Cliente
 from src.persistencia.conexion_bd import ConexionBD
 from src.servicios.gestor_seguridad import GestorSeguridad
 
 
+
 class ClienteDAO:
+
 
     def __init__(self) -> None:
         #==Inicializa el DAO con la conexion Singleton==
         self._bd = ConexionBD.obtener_instancia()
+
 
     def guardar(self, cliente: Cliente) -> Cliente:
         """
@@ -18,13 +22,16 @@ class ClienteDAO:
         Inserta en usuarios y clientes, y actualiza el objeto con los IDs generados.
         """
 
+
         #Asegura que la conexion esta abierta
         self._bd.abrir_conexion()
+
 
         try:
             with self._bd._conexion.cursor() as cursor:
                 #Genera el hash de la contraseña antes de guardarlo
                 contrasenia_hash = GestorSeguridad.generar_hash(cliente.contrasenia_hash)
+
 
                 #Inserta en la tabla usuarios
                 consulta_usuario = """
@@ -36,7 +43,7 @@ class ClienteDAO:
                         edad,
                         tipo_usuario
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, 'cliente')
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     RETURNING id_usuario, fecha_registro
                 """
                 cursor.execute(
@@ -47,11 +54,13 @@ class ClienteDAO:
                         cliente.correo_electronico,
                         contrasenia_hash,
                         cliente.edad,
+                        'cliente',
                     ),
                 )
                 usuario_resultado = cursor.fetchone()
-                cliente.id_usuairio = usuario_resultado[0]
+                cliente.id_usuario = usuario_resultado[0]
                 cliente.fecha_registro = usuario_resultado[1]
+
 
                 #Insertar en clientes
                 consulta_cliente = """
@@ -59,7 +68,7 @@ class ClienteDAO:
                         id_usuario,
                         peso,
                         altura,
-                        objetivo,
+                        objetivo
                     )
                     VALUES (%s, %s, %s, %s)
                     RETURNING fecha_ingreso
@@ -73,20 +82,25 @@ class ClienteDAO:
                         cliente.objetivo,
                     ),
                 )
-                cliente_fecha_ingreso = cursor.fetchone()[0]
+                cliente.fecha_ingreso = cursor.fetchone()[0]
+
 
             self._bd._conexion.commit()
             return cliente
 
+
         except IntegrityError as error:
             self._bd._conexion.rollback()
+
 
             if error.pgcode == "23505":
                 raise ValueError(
                     "El correo ya está registrado."
                 ) from error
 
+
             raise
+
 
         except Exception:
             self._bd._conexion.rollback()
@@ -97,7 +111,7 @@ class ClienteDAO:
         # Busca un cliente por su ID de usuario.
         self._bd.abrir_conexion()
         try:
-            with self._bd._conexion.cursor as cursor:
+            with self._bd._conexion.cursor() as cursor:
                 consulta = """
                     SELECT
                         u.id_usuario,
@@ -124,8 +138,10 @@ class ClienteDAO:
                     return None
                 return self._crear_cliente_desde_fila(fila)
 
+
         except Exception:
             raise
+
 
     def buscar_por_correo(self, correo: str) -> Optional[Cliente]:
         #Busca a un cliente por su correo electronico
@@ -141,26 +157,27 @@ class ClienteDAO:
                         u."contraseña_hash",
                         u.edad,
                         u.tipo_usuario,
-                        u.fecha_registro,
                         c.peso,
                         c.altura,
                         c.objetivo,
+                        u.fecha_registro,
                         c.fecha_ingreso
                     FROM usuarios u
                     JOIN clientes c
-                        ON u.id_usuario = 'cliente'
+                        ON u.id_usuario = c.id_usuario
+                    WHERE u.correo_electronico = %s
                 """
-                cursor.execute(consulta,(correo,))
+                cursor.execute(consulta, (correo,))
                 fila = cursor.fetchone()
                 if fila is None:
                     return None
                 return self._crear_cliente_desde_fila(fila)
-        except Exception
+        except Exception:
             raise
-        
+
 
     def listar(self) -> List[Cliente]:
-    #Lista todos los clientes del sistema.
+        #Lista todos los clientes del sistema.
         self._bd.abrir_conexion()
         try:
             with self._bd._conexion.cursor() as cursor:
@@ -173,10 +190,10 @@ class ClienteDAO:
                         u."contraseña_hash",
                         u.edad,
                         u.tipo_usuario,
-                        u.fecha_registro,
                         c.peso,
                         c.altura,
                         c.objetivo,
+                        u.fecha_registro,
                         c.fecha_ingreso
                     FROM usuarios u
                     JOIN clientes c
@@ -190,6 +207,7 @@ class ClienteDAO:
         except Exception:
             raise
 
+
     def actualizar(self, cliente: Cliente) -> Cliente:
         """
         Actualiza los datos de un cliente existente.
@@ -197,6 +215,7 @@ class ClienteDAO:
         """
         if cliente.id_usuario is None:
             raise ValueError("El cliente debe tener un id para actualizarse.")
+
 
         self._bd.abrir_conexion()
         try:
@@ -224,6 +243,7 @@ class ClienteDAO:
                 if cursor.rowcount == 0:
                     raise ValueError("No se encontró el cliente.")
 
+
                 # Actualizar datos específicos de cliente
                 consulta_cliente = """
                     UPDATE clientes
@@ -244,8 +264,10 @@ class ClienteDAO:
                 if cursor.rowcount == 0:
                     raise ValueError("No se encontraron los datos del cliente.")
 
+
             self._bd._conexion.commit()
             return cliente
+
 
         except IntegrityError as error:
             self._bd._conexion.rollback()
@@ -253,9 +275,11 @@ class ClienteDAO:
                 raise ValueError("El correo ya está registrado.") from error
             raise
 
+
         except Exception:
             self._bd._conexion.rollback()
             raise
+
 
     def actualizar_contrasenia(
         self,
@@ -269,6 +293,7 @@ class ClienteDAO:
         """
         if not nueva_contrasenia:
             raise ValueError("La nueva contraseña no puede estar vacía.")
+
 
         self._bd.abrir_conexion()
         try:
@@ -287,13 +312,16 @@ class ClienteDAO:
                 if fila is None:
                     return False
 
+
                 hash_guardado = fila[0]
+
 
                 # Verificar contraseña actual
                 if not GestorSeguridad.verificar_contrasenia(
                     contrasenia_actual, hash_guardado
                 ):
                     return False
+
 
                 # Generar nuevo hash y actualizar
                 nuevo_hash = GestorSeguridad.generar_hash(nueva_contrasenia)
@@ -306,12 +334,15 @@ class ClienteDAO:
                     (nuevo_hash, id_usuario),
                 )
 
+
             self._bd._conexion.commit()
             return True
+
 
         except Exception:
             self._bd._conexion.rollback()
             raise
+
 
     def eliminar_por_id(self, id_usuario: int) -> bool:
         """
@@ -336,6 +367,7 @@ class ClienteDAO:
             self._bd._conexion.rollback()
             raise
 
+
     @staticmethod
     def _crear_cliente_desde_fila(fila: Tuple) -> Cliente:
         """Método auxiliar para crear un objeto Cliente desde una fila de la BD."""
@@ -346,9 +378,9 @@ class ClienteDAO:
             correo_electronico=fila[3],
             contrasenia_hash=fila[4],
             edad=fila[5],
-            fecha_registro=fila[7],
-            peso=fila[8],
-            altura=fila[9],
-            objetivo=fila[10],
+            fecha_registro=fila[10],
+            peso=float(fila[7]),
+            altura=float(fila[8]),
+            objetivo=fila[9],
             fecha_ingreso=fila[11],
         )

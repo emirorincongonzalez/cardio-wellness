@@ -1,36 +1,51 @@
 from typing import Optional
 
+
 from psycopg2 import IntegrityError
+
 
 from src.modelos.cliente import Cliente
 from src.persistencia.conexion_bd import ConexionBD
 from src.servicios.gestor_seguridad import GestorSeguridad
 
 
+
+
 class UsuarioDAO:
+
 
     def __init__(self) -> None:
         #Inicializa el DAO con la instancia Singleton de ConexionBD
         self._conexion = ConexionBD.obtener_instancia()
 
+
     def guardar(self, usuario, contrasenia_plana: str):
         """
         Guarda un nuevo usuario en la base de datos.
+
 
         Args:
             usuario: Instancia del usuario a guardar.
             contrasenia_plana (str): Contraseña en texto plano del usuario.
 
+
         Returns:
             Usuario: Instancia del usuario con el ID asignado y fecha de registro.
+
 
         Raises:
             ValueError: Si el correo ya está registrado.
             Runtimeerror: Si ocurre un error inesperado durante la operación.
         """
 
+
         if not isinstance(contrasenia_plana, str) or not contrasenia_plana:
             raise ValueError("La contraseña debe ser una cadena no vacía.")
+
+
+        # Genera el hash de la contraseña
+        contrasenia_hash = GestorSeguridad.generar_hash(contrasenia_plana)
+
 
         # Insertar en usuarios
         sql_usuario = """
@@ -46,6 +61,7 @@ class UsuarioDAO:
             RETURNING id_usuario, fecha_registro
         """
 
+
         parametros_usuario = (
             usuario.nombre,
             usuario.apellido,
@@ -55,12 +71,14 @@ class UsuarioDAO:
             usuario.tipo_usuario
         )
 
+
         try:
             resultado = self._conexion.ejecutar_consulta(sql_usuario, parametros_usuario)
             if not resultado:
                 raise RuntimeError("No se pudo guardar el usuario.")
             usuario.id_usuario = resultado[0]['id_usuario']
             usuario.fecha_registro = resultado[0]['fecha_registro']
+
 
             #Si es cliente, insertar en clientes
             if isinstance(usuario, Cliente):
@@ -75,6 +93,7 @@ class UsuarioDAO:
                 RETURNING fecha_ingreso
                 """
 
+
                 parametros_cliente = (
                     usuario.id_usuario,
                     usuario.peso,
@@ -85,19 +104,24 @@ class UsuarioDAO:
                 if resultado_cliente:
                     usuario.fecha_ingreso = resultado_cliente[0]['fecha_ingreso']
 
+
             return usuario
 
+
         except IntegrityError as e:
-            if e.pgcode == "23505":  # Código de error para violación de restricción única
-                raise ValueError("El correo ya está registrado.") from e
-            raise RuntimeError("Error de integridad al guardar el usuario: {e}") from e
+         if e.pgcode == "23505":  # Código de error para violación de restricción única
+          raise ValueError("El correo ya está registrado.") from e
+        raise RuntimeError(f"Error de integridad al guardar el usuario: {e}") from e
+
 
     def buscar_por_correo(self, correo: str):
         """
         Busca un usuario por su correo electrónico.
 
+
         Args:
             correo (str): Correo electrónico del usuario a buscar.
+
 
         Returns:
             Usuario: Instancia del usuario encontrado, o None si no se encuentra.
@@ -124,8 +148,10 @@ class UsuarioDAO:
         if not resultado:
             return None
 
+
         fila = resultado[0]
         tipo_usuario = fila['tipo_usuario'].strip().lower()
+
 
         if tipo_usuario == "cliente":
             return Cliente(
@@ -135,10 +161,9 @@ class UsuarioDAO:
                 correo_electronico=fila['correo_electronico'],
                 contrasenia_hash=fila['contraseña_hash'],
                 edad=fila['edad'],
-                tipo_usuario=fila['tipo_usuario'],
                 fecha_registro=fila['fecha_registro'],
-                peso=fila['peso'],
-                altura=fila['altura'],
+                peso=float(fila['peso']) if fila['peso'] else None,
+                altura=float(fila['altura']) if fila['altura'] else None,
                 objetivo=fila['objetivo'],
                 fecha_ingreso=fila['fecha_ingreso']
             )
@@ -151,7 +176,6 @@ class UsuarioDAO:
                 correo_electronico=fila['correo_electronico'],
                 contrasenia_hash=fila['contraseña_hash'],
                 edad=fila['edad'],
-                tipo_usuario=fila['tipo_usuario'],
                 fecha_registro=fila['fecha_registro']
             )
         else:
@@ -162,31 +186,39 @@ class UsuarioDAO:
         """
         Verifica las credenciales de un usuario.
 
+
         Args:
             correo (str): Correo electrónico del usuario.
             contrasenia (str): Contraseña en texto plano del usuario.
+
 
         Returns:
             Usuario: Instancia del usuario si las credenciales son válidas, o None si no
         """
         usuario = self.buscar_por_correo(correo)
 
+
         if usuario is None:
             return None
+
 
         if GestorSeguridad.verificar_contrasenia(contrasenia, usuario.contrasenia_hash):
             return usuario
         return None
 
+
     def actualizar(self, usuario):
         """
         Actualiza los datos de un usuario.
 
+
         Args:
             usuario: Instancia de Usuario con id_usuario
 
+
         Returns:
             Usuario: Instancia del usuario actualizado.
+
 
         Raises:
             ValueError: Si el usuario no tiene un id_usuario o si el correo ya está registrado.
@@ -195,6 +227,7 @@ class UsuarioDAO:
             raise ValueError(
                 "El usuario debe tener un id para actualizarse."
             )
+
 
         sql = """
             UPDATE usuarios
@@ -214,22 +247,26 @@ class UsuarioDAO:
             usuario.id_usuario
         )
 
+
         try:
             actualizado = self._conexion.ejecutar_actualizacion(sql, parametros)
             if not actualizado:
-                raise ValueError("No se encontro usuario con el ID proporcionado.")
+                raise ValueError("No se encontró el usuario")
             return usuario
         except IntegrityError as e:
             if e.pgcode == "23505":  # Código de error para violación de restricción única
                 raise ValueError("El correo ya está registrado.") from e
-            raise RuntimeError("Error de integridad al actualizar el usuario: {e}") from e
+            raise RuntimeError(f"Error de integridad al actualizar el usuario: {e}") from e
+
 
     def eliminar_por_id(self, id_usuario: int) -> bool:
         """
         Elimina un usuario de la base de datos por su ID.
 
+
         Args:
             id_usuario (int): ID del usuario a eliminar.
+
 
         Returns:
             bool: True si el usuario fue eliminado, False en caso contrario.

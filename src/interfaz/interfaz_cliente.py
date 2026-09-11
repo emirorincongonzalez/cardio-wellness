@@ -24,8 +24,8 @@ class InterfazCliente(tk.Tk):
         +mostrarInicio(): void          -> Construye y muestra la ventana.
         +consultarRutinaActiva(): void  -> Muestra la rutina activa del cliente.
         +consultarProgreso(): void      -> Muestra el progreso del cliente.
-        +registrarSesion(): void        -> Abre el formulario de registro de sesión.
-        +cerrarSesion(): void           -> Cierra la sesión y vuelve al login.
+        +registrarSesion(): void        -> Abre el formulario de registro de sesion.
+        +cerrarSesion(): void           -> Cierra la sesion y vuelve al login.
     """
 
     def __init__(
@@ -85,9 +85,9 @@ class InterfazCliente(tk.Tk):
     def mostrarInicio(self) -> None:
         """
         Construye y muestra la pantalla principal del cliente.
-        Incluye la barra superior y el notebook con pestañas.
+        Incluye la barra superior y el notebook con pestanias.
         """
-        # Barra superior con bienvenida y botón de cerrar sesión
+        # Barra superior con bienvenida y boton de cerrar sesion
         frame_top = ttk.Frame(self, padding=10)
         frame_top.pack(fill="x")
 
@@ -99,22 +99,22 @@ class InterfazCliente(tk.Tk):
 
         ttk.Button(
             frame_top,
-            text="Cerrar Sesión",
+            text="Cerrar Sesion",
             command=self.cerrarSesion,
         ).pack(side="right")
 
-        # Notebook con pestañas
+        # Notebook con pestanias
         self._notebook = ttk.Notebook(self)
         self._notebook.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # Abrir cada pestaña usando los métodos del DCD
+        # Abrir cada pestania usando los metodos del DCD
         self.consultarRutinaActiva()
         self.registrarSesion()
         self.consultarProgreso()
 
     def consultarRutinaActiva(self) -> None:
         """
-        Muestra la pestaña con la rutina activa del cliente.
+        Muestra la pestania con la rutina activa del cliente.
         """
         pestania_rutina = ttk.Frame(self._notebook, padding=10)
         self._notebook.add(pestania_rutina, text="Mi Rutina")
@@ -129,7 +129,7 @@ class InterfazCliente(tk.Tk):
         self._lbl_rutina_nombre.pack(anchor="w", pady=5)
 
         # Tabla de ejercicios
-        cols = ("Ejercicio", "Tipo", "Duración", "Intensidad")
+        cols = ("Ejercicio", "Tipo", "Duracion", "Intensidad")
         self._tree_ejercicios = ttk.Treeview(
             pestania_rutina,
             columns=cols,
@@ -146,7 +146,7 @@ class InterfazCliente(tk.Tk):
 
     def consultarProgreso(self) -> None:
         """
-        Muestra la pestaña con el progreso del cliente.
+        Muestra la pestania con el progreso del cliente.
         """
         pestania_progreso = InterfazProgreso(
             self._notebook,
@@ -157,21 +157,21 @@ class InterfazCliente(tk.Tk):
 
     def registrarSesion(self) -> None:
         """
-        Muestra la pestaña para registrar una nueva sesion de entrenamiento.
-        Equivale al método +registrarSesion() del DCD.
+        Muestra la pestania para registrar una nueva sesion de entrenamiento.
+        Equivale al metodo +registrarSesion() del DCD.
         """
         pestania_sesion = InterfazRegistroSesion(
             self._notebook,
             self._control_sesiones,
             self._cliente_actual.id_usuario,
         )
-        self._notebook.add(pestania_sesion, text="Registrar Sesión")
+        self._notebook.add(pestania_sesion, text="Registrar Sesion")
 
     def cerrarSesion(self) -> None:
         """
-        Cierra la sesión del cliente y vuelve a la ventana de login.
+        Cierra la sesion del cliente y vuelve a la ventana de login.
         """
-        # Registrar el cierre de sesión en el LOG
+        # Registrar el cierre de sesion en el LOG
         try:
             self._control_sesiones._registrar_log(
                 self._cliente_actual.correo_electronico,
@@ -213,7 +213,7 @@ class InterfazCliente(tk.Tk):
             rutina = self._control_rutinas.buscar_por_id(asignacion.id_rutina)
 
             if rutina is None:
-                self._lbl_rutina_nombre.config(text="No se encontró la rutina activa.")
+                self._lbl_rutina_nombre.config(text="No se encontro la rutina activa.")
                 return
 
             # Mostrar el nombre de la rutina

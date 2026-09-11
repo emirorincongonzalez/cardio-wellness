@@ -21,11 +21,11 @@ class InterfazAdministrador(tk.Tk):
         -controlRutinas      : ControlRutinas -> Controlador de rutinas.
         -controlEjercicios   : ControlEjercicios -> Controlador de ejercicios.
 
-    Métodos (segun DCD):
+    Metodos (segun DCD):
         +mostrarMenuPrincipal(): void    -> Construye y muestra el menu.
-        +abrirGestionClientes(): void    -> Abre la pestaña de gestion de clientes.
-        +abrirGestionRutinas(): void     -> Abre la pestaña de gestion de rutinas.
-        +abrirGestionEjercicios(): void  -> Abre la pestaña de gestion de ejercicios.
+        +abrirGestionClientes(): void    -> Abre la pestania de gestion de clientes.
+        +abrirGestionRutinas(): void     -> Abre la pestania de gestion de rutinas.
+        +abrirGestionEjercicios(): void  -> Abre la pestania de gestion de ejercicios.
         +cerrarSesion(): void            -> Cierra la sesion y vuelve al login.
     """
 
@@ -81,12 +81,12 @@ class InterfazAdministrador(tk.Tk):
         return self._control_ejercicios
 
     # ==========================================================
-    # MÉTODOS DEL DCD
+    # METODOS DEL DCD
     # ==========================================================
     def mostrarMenuPrincipal(self) -> None:
         """
         Construye y muestra el menu principal del administrador.
-        Incluye la barra superior y el notebook con pestañas.
+        Incluye la barra superior y el notebook con pestanias.
         """
         # Barra superior con bienvenida y boton de cerrar sesion
         frame_top = ttk.Frame(self, padding=10)
@@ -100,42 +100,58 @@ class InterfazAdministrador(tk.Tk):
 
         ttk.Button(
             frame_top,
-            text="Cerrar Sesión",
+            text="Cerrar Sesion",
             command=self.cerrarSesion,
         ).pack(side="right")
 
-        # Notebook con pestañas
+        # Notebook con pestanias
         self._notebook = ttk.Notebook(self)
         self._notebook.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # Abrir cada pestaña usando los metodos del DCD
+        # Abrir cada pestania usando los metodos del DCD
         self.abrirGestionClientes()
         self.abrirGestionRutinas()
         self.abrirGestionEjercicios()
 
     def abrirGestionClientes(self) -> None:
-        pestaña_clientes = InterfazGestionClientes(
+        """
+        Abre la pestania de gestion de clientes.
+        Equivale al metodo +abrirGestionClientes() del DCD.
+        """
+        pestania_clientes = InterfazGestionClientes(
             self._notebook,
             self._control_clientes,
         )
-        self._notebook.add(pestaña_clientes, text="Clientes")
+        self._notebook.add(pestania_clientes, text="Clientes")
 
     def abrirGestionRutinas(self) -> None:
-        pestaña_rutinas = InterfazGestionRutinas(
+        """
+        Abre la pestania de gestion de rutinas.
+        Equivale al metodo +abrirGestionRutinas() del DCD.
+        """
+        pestania_rutinas = InterfazGestionRutinas(
             self._notebook,
             self._control_rutinas,
         )
-        self._notebook.add(pestaña_rutinas, text="📋 Rutinas")
+        self._notebook.add(pestania_rutinas, text="Rutinas")
 
     def abrirGestionEjercicios(self) -> None:
-        pestaña_ejercicios = InterfazGestionEjercicios(
+        """
+        Abre la pestania de gestion de ejercicios.
+        Equivale al metodo +abrirGestionEjercicios() del DCD.
+        """
+        pestania_ejercicios = InterfazGestionEjercicios(
             self._notebook,
             self._control_ejercicios,
         )
-        self._notebook.add(pestaña_ejercicios, text="Ejercicios")
+        self._notebook.add(pestania_ejercicios, text="Ejercicios")
 
     def cerrarSesion(self) -> None:
-        # Registrar el cierre de sesión en el LOG (opcional)
+        """
+        Cierra la sesion del administrador y vuelve a la ventana de login.
+        Equivale al metodo +cerrarSesion() del DCD.
+        """
+        # Registrar el cierre de sesion en el LOG
         try:
             self._control_clientes._registrar_log(
                 self._administrador_actual.correo_electronico,

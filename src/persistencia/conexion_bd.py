@@ -10,115 +10,147 @@ class ConexionBD:
     Administra la conexión con PostgreSQL usando las variables del archivo .env.
     """
 
-    #==Clase Singleton que administra la conexion a la base de datos.==
-    _instancia: Optional['ConexionBD'] = None
+    _instancia: Optional["ConexionBD"] = None
     _conexion = None
 
-    def __new__(cls) -> 'ConexionBD':
-        #==Controla la creacion de la instancia (patron Singleton)==
+    def __new__(cls) -> "ConexionBD":
+        """Controla la creación de la instancia mediante el patrón Singleton."""
         if cls._instancia is None:
             cls._instancia = super(ConexionBD, cls).__new__(cls)
         return cls._instancia
 
     def __init__(self) -> None:
-        #==Inicializa la configuracion(solo una vez).==
-        if not hasattr(self, '_inicializado'):
-            load_dotenv() #Carga las variables de entorno una sola vez.
+        """Inicializa la configuración una única vez."""
+        if not hasattr(self, "_inicializado"):
+            load_dotenv()
+
             self._config = {
-                'host': os.getenv('DB_HOST', 'localhost'),
-                'port': os.getenv('DB_PORT', '5432'),
-                'dbname': os.getenv('DB_NAME'),
-                'user': os.getenv('DB_USER'),
-                'password': os.getenv('DB_PASSWORD'),
+                "host": os.getenv("DB_HOST", "localhost"),
+                "port": os.getenv("DB_PORT", "5432"),
+                "dbname": os.getenv("DB_NAME"),
+                "user": os.getenv("DB_USER"),
+                "password": os.getenv("DB_PASSWORD"),
             }
+
             self._validar_configuracion()
             self._inicializado = True
 
     def _validar_configuracion(self) -> None:
-        #==Valida que todas las variables de entorno necesarias estén presentes.==
-        obligatorias = ['dbname', 'user', 'password']
-        faltantes = [key for key in obligatorias if not self._config.get(key)]
+        """Valida que existan las variables necesarias para PostgreSQL."""
+        obligatorias = ["dbname", "user", "password"]
+        faltantes = [
+            clave for clave in obligatorias
+            if not self._config.get(clave)
+        ]
+
         if faltantes:
             raise EnvironmentError(
-                f"Faltan variables de entorno: {', '.join(faltantes)}"
-                "Asegurate de tener un archivo .env con DB_NAME, DB_USER, DB_PASSWORD."
+                f"Faltan variables de entorno: {', '.join(faltantes)}. "
+                "Asegúrate de tener un archivo .env con "
+                "DB_NAME, DB_USER y DB_PASSWORD."
             )
 
     @staticmethod
-    def obtener_instancia() -> 'ConexionBD':
-        #==Devuelve la unica instancia de la clase (Singleton)==
+    def obtener_instancia() -> "ConexionBD":
+        """Devuelve la única instancia de ConexionBD."""
         return ConexionBD()
 
     def abrir_conexion(self) -> None:
-        #==Establece la conexion con la base de datos==#
-        #==Si ya esta abierta, no hace nada.==
-
+        """Abre la conexión con PostgreSQL si aún no está abierta."""
         if self._conexion is not None and not self._conexion.closed:
-            return  # Conexion ya abierta
+            return
 
         try:
             self._conexion = psycopg2.connect(**self._config)
             print("Conexion a la base de datos establecida.")
-        except psycopg2.OperationalError as e:
-            raise RuntimeError(f"Error al conectar a la base de datos: {e}")
+        except psycopg2.OperationalError as error:
+            raise RuntimeError(
+                f"Error al conectar a la base de datos: {error}"
+            ) from error
 
     def cerrar_conexion(self) -> None:
-        #==Cierra la conexion con la base de datos si esta abierta.==
+        """Cierra la conexión activa, si existe."""
         if self._conexion is not None and not self._conexion.closed:
             self._conexion.close()
-            self._conexion = None 
+            self._conexion = None
             print("Conexion a la base de datos cerrada.")
 
     def _obtener_cursor(self):
-        #==Obtiene un cursor de la conexion (abre la conexion si es necesario)==
+        """Obtiene un cursor y abre la conexión si es necesario."""
         if self._conexion is None or self._conexion.closed:
             self.abrir_conexion()
+
         return self._conexion.cursor()
 
-    def ejecutar_consulta(self, sql: str, parametros: Optional[tuple] = None) -> List[Dict[str, Any]]:
+    def ejecutar_consulta(
+        self,
+        sql: str,
+        parametros: Optional[tuple] = None,
+    ) -> List[Dict[str, Any]]:
         """
-        Ejecuta una consulta SELECT y devuelve los resultados como una lista de diccionarios.
-        
-        Args:
-            sql (str): La consulta SQL con placeholders %s.
-            parametros (tuple, optional): Parametros para la consulta.
+        Ejecuta una consulta que devuelve filas, incluyendo INSERT con RETURNING.
 
-        Returns:
-            List[Dict[str, Any]]: Lista de resultados como diccionarios (columna: valor).
+        Devuelve una lista de diccionarios, uno por cada fila obtenida.
         """
         try:
             with self._obtener_cursor() as cursor:
                 cursor.execute(sql, parametros or ())
-                columnas = [desc[0] for desc in cursor.description]
+
+                if cursor.description is None:
+                    self._conexion.commit()
+                    return []
+
+                columnas = [descripcion[0] for descripcion in cursor.description]
                 filas = cursor.fetchall()
-                return [dict(zip(columnas, fila)) for fila in filas]
-        except psycopg2.Error as e:
-            raise RuntimeError(f"Error al ejecutar la consulta: {e}")
+                self._conexion.commit()
 
-    def ejecutar_actualizacion(self, sql: str, parametros: Optional[tuple] = None) -> bool:
+                return [
+                    dict(zip(columnas, fila))
+                    for fila in filas
+                ]
+
+        except psycopg2.IntegrityError:
+            self._conexion.rollback()
+            raise
+
+        except psycopg2.Error as error:
+            self._conexion.rollback()
+            raise RuntimeError(
+                f"Error al ejecutar la consulta: {error}"
+            ) from error
+
+    def ejecutar_actualizacion(
+        self,
+        sql: str,
+        parametros: Optional[tuple] = None,
+    ) -> bool:
         """
-        Ejecuta una sentencia INSERT, UPDATE, o DELTE.
+        Ejecuta INSERT, UPDATE o DELETE sin requerir filas de retorno.
 
-        args:
-            sql (str): La sentencia SQL con placeholders %s.
-            parametros (tuple, optional): Parametros para la sentencia.
-
-        Returns:
-            bool: True si la operacion afecto al menos una fila.
+        Retorna True cuando la operación afecta al menos una fila.
         """
         try:
             with self._obtener_cursor() as cursor:
                 cursor.execute(sql, parametros or ())
-                return cursor.rowcount > 0
-        except psycopg2.Error as e:
-            self._conexion.rollback() # Revertir cambios en caso de error
-            raise RuntimeError(f"Error al ejecutar la actualizacion: {e}")
+                filas_afectadas = cursor.rowcount
+                self._conexion.commit()
+                return filas_afectadas > 0
+
+        except psycopg2.IntegrityError:
+            self._conexion.rollback()
+            raise
+
+        except psycopg2.Error as error:
+            self._conexion.rollback()
+            raise RuntimeError(
+                f"Error al ejecutar la actualización: {error}"
+            ) from error
 
     def __enter__(self):
-        #==Permite usar la clase con el contexto 'with'==#
+        """Permite usar ConexionBD dentro de un bloque with."""
         self.abrir_conexion()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        #==Cierra la conexion al salir del contexto==#
+        """Cierra la conexión al finalizar un bloque with."""
         self.cerrar_conexion()

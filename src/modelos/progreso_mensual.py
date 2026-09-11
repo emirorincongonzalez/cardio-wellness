@@ -3,7 +3,6 @@ from decimal import Decimal
 from typing import Optional
 
 
-
 class ProgresoMensual:
 
 
@@ -74,7 +73,7 @@ class ProgresoMensual:
 
     @peso.setter
     def peso(self, valor: float) -> None:
-        if not isinstance(valor, (int, float)) or valor <= 0:
+        if not isinstance(valor, (int, float, Decimal)) or valor <= 0:
             raise ValueError("El peso debe ser mayor que cero.")
         self._peso = Decimal(str(valor))
 
@@ -112,7 +111,7 @@ class ProgresoMensual:
 
     @porcentaje_cumplimiento.setter
     def porcentaje_cumplimiento(self, valor: float) -> None:
-        if not isinstance(valor, (int, float)) or valor < 0 or valor > 100:
+        if not isinstance(valor, (int, float, Decimal)) or valor < 0 or valor > 100:
             raise ValueError("El porcentaje de cumplimiento debe estar entre 0 y 100.")
         self._porcentaje_cumplimiento = float(valor)
 

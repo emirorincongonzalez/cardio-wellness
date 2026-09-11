@@ -1,8 +1,10 @@
 """
 Pruebas de Integración - Cardio-Wellness
 
+
 Estas pruebas verifican el comportamiento completo del sistema sin interfaz gráfica,
 llamando directamente a la base de datos y verificando los resultados.
+
 
 Casos de prueba:
 1. Registro completo de un cliente (con hash de contraseña)
@@ -12,20 +14,25 @@ Casos de prueba:
 5. Verificación del archivo LOG_CARDIO.txt
 """
 
+
 import sys
 import hashlib
 from pathlib import Path
 from datetime import datetime, date
 
+
 # Agregar la raíz del proyecto al path
 ROOT_DIR = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
+
 from tests.integracion.config_db import ejecutar_consulta, ejecutar_con_retorno, get_connection
 
 
-class TestIntegracion:
+
+class IntegracionWellness:
     """Clase para ejecutar pruebas de integración del sistema."""
+
 
     def __init__(self):
         self.resultados = []
@@ -34,6 +41,7 @@ class TestIntegracion:
         self.contrasena_prueba = None
         self.id_rutina_prueba = None
         self.id_sesion_prueba = None
+
 
     def _registrar_resultado(self, nombre_prueba: str, exito: bool, mensaje: str = ""):
         """Registra el resultado de una prueba."""
@@ -46,9 +54,11 @@ class TestIntegracion:
         estado = "✅" if exito else "❌"
         print(f"{estado} {nombre_prueba}: {mensaje}")
 
+
     def _hash_contraseña(self, contrasena: str) -> str:
         """Hashea una contraseña usando SHA-256."""
         return hashlib.sha256(contrasena.encode()).hexdigest()
+
 
     def test_01_registro_cliente(self):
         """CASO 1: Registro completo de cliente."""
@@ -152,6 +162,7 @@ class TestIntegracion:
             )
             return False
 
+
     def test_02_inicio_sesion(self):
         """CASO 2: Inicio de sesión (correcto e incorrecto)."""
         print("\n" + "="*70)
@@ -235,6 +246,7 @@ class TestIntegracion:
                 f"Excepción: {str(e)}"
             )
             return False
+
 
     def test_03_asignacion_rutina(self):
         """CASO 3: Asignación de rutina a cliente."""
@@ -332,6 +344,7 @@ class TestIntegracion:
             )
             return False
 
+
     def test_04_registro_sesion_progreso(self):
         """CASO 4: Registro de sesión y cálculo de progreso."""
         print("\n" + "="*70)
@@ -414,6 +427,7 @@ class TestIntegracion:
             )
             return False
 
+
     def test_05_verificacion_log(self):
         """CASO 5: Verificación del archivo LOG_CARDIO.txt."""
         print("\n" + "="*70)
@@ -470,6 +484,7 @@ class TestIntegracion:
             )
             return False
 
+
     def ejecutar_todas_las_pruebas(self):
         """Ejecuta todas las pruebas de integración."""
         print("\n" + "="*70)
@@ -485,6 +500,7 @@ class TestIntegracion:
         self.test_05_verificacion_log()
         
         self._mostrar_resumen()
+
 
     def _mostrar_resumen(self):
         """Muestra el resumen de resultados."""
@@ -510,6 +526,7 @@ class TestIntegracion:
             print("-" * 70)
         
         self._guardar_resumen()
+
 
     def _guardar_resumen(self):
         """Guarda el resumen en un archivo."""
@@ -541,10 +558,12 @@ class TestIntegracion:
             print(f"Error al guardar resumen: {e}")
 
 
+
 def main():
     """Función principal."""
-    tester = TestIntegracion()
+    tester = IntegracionWellness()
     tester.ejecutar_todas_las_pruebas()
+
 
 
 if __name__ == "__main__":

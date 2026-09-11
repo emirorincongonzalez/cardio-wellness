@@ -1,10 +1,14 @@
 from datetime import date
+from decimal import Decimal
 from typing import Optional
+
 
 from src.modelos.enums import Intensidad
 
 
+
 class SesionEntrenamiento:
+
 
     def __init__(
         self,
@@ -26,18 +30,22 @@ class SesionEntrenamiento:
         self.observaciones = observaciones
         self.completada = completada
 
+
     #==Propiedades==
     @property
     def id_sesion(self) -> Optional[int]:
         return self._id_sesion
 
+
     @id_sesion.setter
     def id_sesion(self, valor: Optional[int]) -> None:
         self._id_sesion = valor
 
+
     @property
     def id_cliente(self) -> Optional[int]:
         return self._id_cliente
+
 
     @id_cliente.setter
     def id_cliente(self, valor: Optional[int]) -> None:
@@ -45,9 +53,11 @@ class SesionEntrenamiento:
             raise ValueError("El id del cliente debe ser un entero positivo.")
         self._id_cliente = valor
 
+
     @property
     def fecha(self) -> date:
         return self._fecha
+
 
     @fecha.setter
     def fecha(self, valor: date) -> None:
@@ -55,9 +65,11 @@ class SesionEntrenamiento:
             raise ValueError("La fecha debe ser un objeto date.")
         self._fecha = valor
 
+
     @property
     def duracion_real(self) -> int:
         return self._duracion_real
+
 
     @duracion_real.setter
     def duracion_real(self, valor: int) -> None:
@@ -65,9 +77,11 @@ class SesionEntrenamiento:
             raise ValueError("La duración real debe ser mayor que cero.")
         self._duracion_real = valor
 
+
     @property
     def intensidad_real(self) -> Intensidad:
         return self._intensidad_real
+
 
     @intensidad_real.setter
     def intensidad_real(self, valor: Intensidad) -> None:
@@ -75,27 +89,33 @@ class SesionEntrenamiento:
             raise ValueError("La intensidad debe ser un valor válido de Intensidad.")
         self._intensidad_real = valor
 
+
     @property
     def calorias_quemadas(self) -> float:
         return self._calorias_quemadas
 
+
     @calorias_quemadas.setter
     def calorias_quemadas(self, valor: float) -> None:
-        if not isinstance(valor, (int, float)) or valor < 0:
+        if not isinstance(valor, (int, float, Decimal)) or valor < 0:
             raise ValueError("Las calorías quemadas no pueden ser negativas.")
         self._calorias_quemadas = float(valor)
+
 
     @property
     def observaciones(self) -> str:
         return self._observaciones
 
+
     @observaciones.setter
     def observaciones(self, valor: str) -> None:
         self._observaciones = valor.strip() if isinstance(valor, str) else ""
 
+
     @property
     def completada(self) -> bool:
         return self._completada
+
 
     @completada.setter
     def completada(self, valor: bool) -> None:
@@ -103,12 +123,15 @@ class SesionEntrenamiento:
             raise ValueError("completada debe ser un booleano.")
         self._completada = valor
 
+
     #==Metodos de negocio==
     def registrar_resultado(self) -> None:
         self.completada = True
 
+
     def marcar_como_completada(self) -> None:
         self.completada = True
+
 
     def obtener_resumen(self) -> str:
         estado = "Completada" if self.completada else "Pendiente"
@@ -119,6 +142,7 @@ class SesionEntrenamiento:
             f"Calorías: {self.calorias_quemadas:.1f} | "
             f"Estado: {estado}"
         )
+
 
     #==Representacion==
     def __repr__(self) -> str:

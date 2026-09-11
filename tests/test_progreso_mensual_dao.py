@@ -1,84 +1,153 @@
+from datetime import date
 from decimal import Decimal
-import sqlite3
+from uuid import uuid4
+
 import pytest
 
+from src.modelos.progreso_mensual import ProgresoMensual
+from src.persistencia.conexion_bd import ConexionBD
 from src.persistencia.progreso_mensual_dao import ProgresoMensualDAO
+from src.servicios.gestor_seguridad import GestorSeguridad
 
 
 @pytest.fixture
-def db_conn():
-    conn = sqlite3.connect(":memory:")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+def dao():
+    return ProgresoMensualDAO()
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS progreso_mensual (
-            id_progreso INTEGER PRIMARY KEY AUTOINCREMENT,
-            id_cliente INTEGER NOT NULL,
-            mes INTEGER NOT NULL,
-            anio INTEGER NOT NULL,
-            peso_registrado REAL,
-            total_sesiones INTEGER NOT NULL,
-            total_minutos INTEGER NOT NULL,
-            total_calorias REAL NOT NULL,
-            observaciones TEXT
+
+@pytest.fixture
+def id_cliente_prueba():
+    bd = ConexionBD.obtener_instancia()
+    bd.abrir_conexion()
+
+    correo = f"progreso.{uuid4().hex}@example.com"
+    contrasenia_hash = GestorSeguridad.generar_hash("Clave123")
+
+    with bd._conexion.cursor() as cursor:
+        cursor.execute(
+            """
+            INSERT INTO usuarios (
+                nombre,
+                apellido,
+                correo_electronico,
+                "contraseña_hash",
+                edad,
+                tipo_usuario
+            )
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id_usuario
+            """,
+            (
+                "Test",
+                "Progreso",
+                correo,
+                contrasenia_hash,
+                30,
+                "cliente",
+            ),
         )
-    """)
-    conn.commit()
+        id_cliente = cursor.fetchone()[0]
 
-    yield conn
-    conn.close()
+        cursor.execute(
+            """
+            INSERT INTO clientes (
+                id_usuario,
+                peso,
+                altura,
+                objetivo
+            )
+            VALUES (%s, %s, %s, %s)
+            """,
+            (id_cliente, 70.0, 1.75, "Mantener condición"),
+        )
+
+    bd._conexion.commit()
+
+    yield id_cliente
+
+    try:
+        with bd._conexion.cursor() as cursor:
+            cursor.execute(
+                """
+                DELETE FROM progreso_mensual
+                WHERE id_cliente = %s
+                """,
+                (id_cliente,),
+            )
+            cursor.execute(
+                """
+                DELETE FROM usuarios
+                WHERE id_usuario = %s
+                """,
+                (id_cliente,),
+            )
+        bd._conexion.commit()
+    except Exception:
+        bd._conexion.rollback()
+        raise
 
 
-@pytest.fixture
-def dao(db_conn):
-    return ProgresoMensualDAO(conexion_bd=db_conn)
+def crear_progreso(
+    id_cliente: int,
+    mes: date,
+    peso: float,
+) -> ProgresoMensual:
+    return ProgresoMensual(
+        id_progreso=None,
+        id_cliente=id_cliente,
+        mes=mes,
+        peso=peso,
+        sesiones_completadas=0,
+        sesiones_planificadas=12,
+        porcentaje_cumplimiento=0.0,
+    )
 
 
-def test_dao_guardar_y_buscar_por_cliente(dao):
-    class MockProgreso:
-        def __init__(self):
-            self.id_cliente = 1
-            self.mes = 8
-            self.anio = 2026
-            self.peso_registrado = Decimal("74.5")
-            self.total_sesiones = 12
-            self.total_minutos = 480
-            self.total_calorias = Decimal("3600.0")
-            self.observaciones = "Excelente mes"
+def test_dao_guardar_y_buscar_por_cliente(dao, id_cliente_prueba):
+    progreso = crear_progreso(
+        id_cliente=id_cliente_prueba,
+        mes=date(2026, 8, 1),
+        peso=72.5,
+    )
 
-    prog = dao.guardar(MockProgreso())
-    assert hasattr(prog, "id_progreso")
-    assert prog.id_progreso == 1
+    guardado = dao.guardar(progreso)
 
-    lista = dao.buscar_por_cliente(1)
-    assert len(lista) == 1
-    assert lista[0]["id_cliente"] == 1
-    assert lista[0]["mes"] == 8
-    assert lista[0]["total_sesiones"] == 12
+    assert guardado.id_progreso is not None
+
+    historial = dao.buscar_por_cliente(id_cliente_prueba)
+
+    assert len(historial) == 1
+    assert historial[0].id_progreso == guardado.id_progreso
+    assert historial[0].id_cliente == id_cliente_prueba
+    assert historial[0].mes == date(2026, 8, 1)
+    assert historial[0].peso == Decimal("72.5")
 
 
-def test_dao_actualizar_progreso(dao):
-    class MockProgreso:
-        def __init__(self):
-            self.id_cliente = 2
-            self.mes = 7
-            self.anio = 2026
-            self.peso_registrado = 80.0
-            self.total_sesiones = 5
-            self.total_minutos = 150
-            self.total_calorias = 1200.0
-            self.observaciones = "Inicio"
+def test_dao_actualizar_progreso(dao, id_cliente_prueba):
+    progreso = crear_progreso(
+        id_cliente=id_cliente_prueba,
+        mes=date(2026, 9, 1),
+        peso=70.0,
+    )
 
-    prog = dao.guardar(MockProgreso())
+    guardado = dao.guardar(progreso)
 
-    prog.peso_registrado = 78.5
-    prog.total_sesiones = 8
-    prog.observaciones = "Ajustado"
+    guardado.peso = 69.5
+    guardado.sesiones_completadas = 8
+    guardado.sesiones_planificadas = 10
+    guardado.actualizar_progreso()
 
-    actualizado = dao.actualizar(prog)
-    assert actualizado is True
+    actualizado = dao.actualizar(guardado)
 
-    lista = dao.buscar_por_cliente(2)
-    assert lista[0]["peso_registrado"] == 78.5
-    assert lista[0]["total_sesiones"] == 8
+    assert actualizado.peso == Decimal("69.5")
+    assert actualizado.sesiones_completadas == 8
+    assert actualizado.sesiones_planificadas == 10
+    assert actualizado.porcentaje_cumplimiento == 80.0
+
+    encontrado = dao.buscar_por_id(guardado.id_progreso)
+
+    assert encontrado is not None
+    assert encontrado.peso == Decimal("69.5")
+    assert encontrado.sesiones_completadas == 8
+    assert encontrado.sesiones_planificadas == 10
+    assert encontrado.porcentaje_cumplimiento == 80.0

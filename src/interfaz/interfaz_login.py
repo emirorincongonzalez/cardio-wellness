@@ -12,7 +12,7 @@ class InterfazLogin(tk.Tk):
 
     Atributos (segun DCD):
         -correo : String       -> Correo ingresado por el usuario.
-        -contrasenia : String   -> Contraseniaa ingresada por el usuario.
+        -contrasenia : String   -> Contrasenia ingresada por el usuario.
         -control : ControlAutenticacion -> Controlador de autenticacion.
 
     Metodos (segun DCD):
@@ -35,8 +35,8 @@ class InterfazLogin(tk.Tk):
         self._contrasenia: str = ""
         self._control: ControlAutenticacion = control_autenticacion
 
-        #  Configuracion de la ventana
-        self.title("Cardio Wellness - Iniciar Sesión")
+        # Configuracion de la ventana
+        self.title("Cardio Wellness - Iniciar Sesion")
         self.geometry("400x350")
         self.resizable(False, False)
 
@@ -76,17 +76,17 @@ class InterfazLogin(tk.Tk):
         frame.pack(fill="both", expand=True)
 
         # Campo: Correo
-        ttk.Label(frame, text="Correo Electrónico:").grid(row=0, column=0, sticky="w", pady=5)
+        ttk.Label(frame, text="Correo Electronico:").grid(row=0, column=0, sticky="w", pady=5)
         self._ent_correo = ttk.Entry(frame, width=32)
         self._ent_correo.grid(row=1, column=0, sticky="ew", pady=(0, 12))
 
-        # Campo: Contraseña
-        ttk.Label(frame, text="Contraseña:").grid(row=2, column=0, sticky="w", pady=5)
-        self._ent_password = ttk.Entry(frame, width=32, show="*")
-        self._ent_password.grid(row=3, column=0, sticky="ew", pady=(0, 20))
+        # Campo: Contrasenia
+        ttk.Label(frame, text="Contrasenia:").grid(row=2, column=0, sticky="w", pady=5)
+        self._ent_contrasenia = ttk.Entry(frame, width=32, show="*")
+        self._ent_contrasenia.grid(row=3, column=0, sticky="ew", pady=(0, 20))
 
         # Botones
-        ttk.Button(frame, text="Iniciar Sesión", command=self.iniciarSesion).grid(
+        ttk.Button(frame, text="Iniciar Sesion", command=self.iniciarSesion).grid(
             row=4, column=0, sticky="ew", pady=5
         )
         ttk.Button(frame, text="Salir", command=self.destroy).grid(
@@ -98,13 +98,13 @@ class InterfazLogin(tk.Tk):
         Captura los datos ingresados por el usuario en los campos del formulario.
 
         Returns:
-            bool: True si los datos son válidos (no vacíos), False en caso contrario.
+            bool: True si los datos son validos (no vacios), False en caso contrario.
         """
         self._correo = self._ent_correo.get().strip()
-        self._contrasenia = self._ent_password.get().strip()
+        self._contrasenia = self._ent_contrasenia.get().strip()
 
         if not self._correo or not self._contrasenia:
-            messagebox.showwarning("Campos Vacíos", "Por favor complete todos los campos.")
+            messagebox.showwarning("Campos Vacios", "Por favor complete todos los campos.")
             return False
         return True
 
@@ -120,19 +120,19 @@ class InterfazLogin(tk.Tk):
         # 2. Autenticar usando el controlador
         try:
             usuario: Optional[Usuario] = self._control.iniciar_sesion(
-                self._correo, self._contraseña
+                self._correo, self._contrasenia
             )
 
             if usuario is None:
                 messagebox.showerror("Error", "Credenciales incorrectas.")
                 return
 
-            # 3. Redirigir según el rol del usuario
+            # 3. Redirigir segun el rol del usuario
             self.destroy()
             self._abrir_interfaz_por_rol(usuario)
 
         except Exception as e:
-            messagebox.showerror("Error", f"Error al iniciar sesión: {e}")
+            messagebox.showerror("Error", f"Error al iniciar sesion: {e}")
 
     # ==========================================================
     # METODOS AUXILIARES

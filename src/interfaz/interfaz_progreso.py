@@ -10,12 +10,12 @@ from src.interfaz.interfaz_base import InterfazBase
 
 class InterfazProgreso(InterfazBase):
     """
-    Pestania de progreso del cliente (incluye parámetro META con colores).
+    Pestania de progreso del cliente (incluye parametro META con colores).
 
     Atributos (segun DCD):
         -cliente : Cliente -> Cliente logueado.
 
-    Métodos (segun DCD):
+    Metodos (segun DCD):
         +mostrarProgresoMensual(): void  -> Muestra el progreso del mes.
         +mostrarHistorial(): void        -> Muestra el historial completo.
         +mostrarResumen(): void          -> Muestra el resumen de actividad.

@@ -15,7 +15,7 @@ class InterfazRegistroSesion(InterfazBase):
 
     Metodos (segun DCD):
         +mostrarFormularioSesion(): void  -> Construye el formulario.
-        +registrarSesion(): void          -> Registra la sesión.
+        +registrarSesion(): void          -> Registra la sesion.
         +cancelarRegistro(): void         -> Limpia el formulario.
     """
 

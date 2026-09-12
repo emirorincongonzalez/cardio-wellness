@@ -12,9 +12,9 @@ class InterfazGestionRutinas(InterfazBase):
     Pestania de gestion de rutinas.
 
     Atributos (segun DCD):
-        -controlRutinas : ControlRutinas → Controlador de rutinas.
+        -controlRutinas : ControlRutinas -> Controlador de rutinas.
 
-    Métodos (según DCD):
+    Metodos (segun DCD):
         +mostrarRutinas(): void             -> Carga la lista de rutinas.
         +mostrarFormularioRutina(): void    -> Construye el formulario.
         +crearRutina(): void                -> Crea una nueva rutina.
@@ -119,7 +119,7 @@ class InterfazGestionRutinas(InterfazBase):
         if not seleccion:
             self.mostrar_error("Seleccione una rutina para editar.")
             return
-        self.mostrar_mensaje("Funcionalidad de edición pendiente de implementar.")
+        self.mostrar_mensaje("Funcionalidad de edicion pendiente de implementar.")
 
     def eliminarRutina(self) -> None:
         """Elimina la rutina seleccionada."""
@@ -129,7 +129,7 @@ class InterfazGestionRutinas(InterfazBase):
             return
 
         id_rutina = self._tree.item(seleccion[0])["values"][0]
-        if not self.confirmar_accion(f"¿Eliminar la rutina con ID {id_rutina}?"):
+        if not self.confirmar_accion(f"Eliminar la rutina con ID {id_rutina}?"):
             return
 
         try:
@@ -148,7 +148,7 @@ class InterfazGestionRutinas(InterfazBase):
 
         id_rutina = int(self._tree.item(seleccion[0])["values"][0])
 
-        # Pedir ID del cliente mediante un diálogo simple
+        # Pedir ID del cliente mediante un dialogo simple
         from tkinter import simpledialog
         id_cliente = simpledialog.askinteger(
             "Asignar Rutina",

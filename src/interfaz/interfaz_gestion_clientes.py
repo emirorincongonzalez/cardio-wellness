@@ -12,7 +12,7 @@ class InterfazGestionClientes(InterfazBase):
     Pestania de gestion de clientes.
 
     Atributos (segun DCD):
-        -controlClientes : ControlClientes → Controlador de clientes.
+        -controlClientes : ControlClientes -> Controlador de clientes.
 
     Metodos (segun DCD):
         +mostrarClientes(): void              -> Carga la lista de clientes.
@@ -143,8 +143,8 @@ class InterfazGestionClientes(InterfazBase):
         if not seleccion:
             self.mostrar_error("Seleccione un cliente para editar.")
             return
-        # Aqui iría la logica de edicion (abrir formulario modal, etc.)
-        self.mostrar_mensaje("Funcionalidad de edición pendiente de implementar.")
+        # Aqui iria la logica de edicion (abrir formulario modal, etc.)
+        self.mostrar_mensaje("Funcionalidad de edicion pendiente de implementar.")
 
     def eliminarCliente(self) -> None:
         """Elimina el cliente seleccionado en la tabla."""
@@ -154,7 +154,7 @@ class InterfazGestionClientes(InterfazBase):
             return
 
         id_cliente = self._tree.item(seleccion[0])["values"][0]
-        if not self.confirmar_accion(f"¿Eliminar al cliente con ID {id_cliente}?"):
+        if not self.confirmar_accion(f"Eliminar al cliente con ID {id_cliente}?"):
             return
 
         try:
@@ -173,7 +173,7 @@ class InterfazGestionClientes(InterfazBase):
         try:
             cliente = self._control_clientes.buscar_por_correo(correo)
             if cliente is None:
-                self.mostrar_mensaje("No se encontró ningún cliente con ese correo.")
+                self.mostrar_mensaje("No se encontro ningun cliente con ese correo.")
                 return
             self.mostrar_mensaje(
                 f"Encontrado: {cliente.obtener_nombre_completo()} - {cliente.correo_electronico}"

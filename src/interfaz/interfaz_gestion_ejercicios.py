@@ -12,9 +12,9 @@ class InterfazGestionEjercicios(InterfazBase):
     Pestania de gestion de ejercicios.
 
     Atributos (segun DCD):
-        -controlEjercicios : ControlEjercicios → Controlador de ejercicios.
+        -controlEjercicios : ControlEjercicios -> Controlador de ejercicios.
 
-    Métodos (según DCD):
+    Metodos (segun DCD):
         +mostrarEjercicios(): void              -> Carga la lista de ejercicios.
         +mostrarFormularioEjercicio(): void     -> Construye el formulario.
         +crearEjercicio(): void                 -> Crea un nuevo ejercicio.
@@ -131,7 +131,7 @@ class InterfazGestionEjercicios(InterfazBase):
         if not seleccion:
             self.mostrar_error("Seleccione un ejercicio para editar.")
             return
-        self.mostrar_mensaje("Funcionalidad de edición pendiente de implementar.")
+        self.mostrar_mensaje("Funcionalidad de edicion pendiente de implementar.")
 
     def eliminarEjercicio(self) -> None:
         """Elimina el ejercicio seleccionado."""
@@ -141,7 +141,7 @@ class InterfazGestionEjercicios(InterfazBase):
             return
 
         id_ejercicio = self._tree.item(seleccion[0])["values"][0]
-        if not self.confirmar_accion(f"¿Eliminar el ejercicio con ID {id_ejercicio}?"):
+        if not self.confirmar_accion(f"Eliminar el ejercicio con ID {id_ejercicio}?"):
             return
 
         try:
@@ -152,7 +152,7 @@ class InterfazGestionEjercicios(InterfazBase):
             self.mostrar_error(f"Error al eliminar: {e}")
 
     def buscarEjercicio(self) -> None:
-        """Busca un ejercicio por nombre (búsqueda simple en la tabla)."""
+        """Busca un ejercicio por nombre (busqueda simple en la tabla)."""
         texto = self._ent_buscar.get().strip().lower()
         if not texto:
             self.mostrarEjercicios()

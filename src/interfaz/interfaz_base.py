@@ -6,10 +6,10 @@ from tkinter import messagebox, ttk
 class InterfazBase(ttk.Frame):
     """
     Clase base abstracta para todas las interfaces del sistema.
-    Proporciona métodos comunes para mostrar mensajes y errores.
+    Proporciona metodos comunes para mostrar mensajes y errores.
 
     Esta clase NO debe instanciarse directamente; sirve como contrato
-    común para las subclases (InterfazGestionClientes, InterfazProgreso, etc.).
+    comun para las subclases (InterfazGestionClientes, InterfazProgreso, etc.).
     """
 
     def __init__(
@@ -36,12 +36,12 @@ class InterfazBase(ttk.Frame):
 
     def mostrar_mensaje(self, mensaje: str) -> None:
         """Muestra un mensaje informativo al usuario."""
-        messagebox.showinfo("Información", mensaje)
+        messagebox.showinfo("Informacion", mensaje)
 
     def mostrar_error(self, mensaje: str) -> None:
         """Muestra un mensaje de error al usuario."""
         messagebox.showerror("Error", mensaje)
 
     def confirmar_accion(self, mensaje: str) -> bool:
-        """Solicita confirmación al usuario y devuelve True si acepta."""
+        """Solicita confirmacion al usuario y devuelve True si acepta."""
         return messagebox.askyesno("Confirmar", mensaje)

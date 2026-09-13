@@ -140,19 +140,11 @@ class ConexionBD:
         try:
             with self._obtener_cursor() as cursor:
                 cursor.execute(sql, parametros or ())
-                filas_afectadas = cursor.rowcount
                 self._conexion.commit()
-                return filas_afectadas > 0
-
-        except psycopg2.IntegrityError:
-            self._conexion.rollback()
-            raise
-
-        except psycopg2.Error as error:
-            self._conexion.rollback()
-            raise RuntimeError(
-                f"Error al ejecutar la actualización: {error}"
-            ) from error
+                return cursor.rowcount > 0
+        except psycopg2.Error as e:
+            self._conexion.rollback() # Revertir cambios en caso de error
+            raise RuntimeError(f"Error al ejecutar la actualizacion: {e}")
 
     def __enter__(self):
         """Permite usar ConexionBD dentro de un bloque with."""

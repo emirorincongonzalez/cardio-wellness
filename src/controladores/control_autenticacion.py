@@ -1,33 +1,63 @@
-﻿from src.controladores.control_base import ControlBase
+﻿from typing import Optional
+
+from src.modelos.usuario import Usuario
+from src.controladores.control_base import ControlBase
 from src.persistencia.usuario_dao import UsuarioDAO
 from src.servicios.fabrica_usuario import FabricaUsuario
 from src.servicios.gestor_seguridad import GestorSeguridad
 
 
 class ControlAutenticacion(ControlBase):
+    """
+    Controlador para la autenticación de usuarios.
+    Gestiona el inicio y cierre de sesión, y mantiene el usuario actual.
+    """
 
-    def __init__(self, usuario_dao=None, ruta_log="logs/LOG_CARDIO.txt"):
+    def __init__(self, usuario_dao: Optional[UsuarioDAO] =None, ruta_log: str ="logs/LOG_CARDIO.txt") -> None:
+        """
+        Inicializa el controlador de autenticación.
+
+        Args:
+            usuario_dao (UsuarioDAO, optional): DAO de usuarios. Si no se
+                proporciona, se crea uno por defecto.
+            ruta_log (str): Ruta al archivo de LOG para auditoría.
+        """
         super().__init__(ruta_log=ruta_log)
         self.usuario_dao = usuario_dao or UsuarioDAO()
-        self.usuario_actual = None
+        self.usuario_actual: Optional[Usuario] = None
 
-    def _validar_entradas_login(self, correo_electronico, contrasenia_plana):
+    def _validar_entradas_login(self, correo_electronico: str, contrasenia_plana: str) -> None:
+        """
+                Valida las entradas para el inicio de sesión.
+        
+                Args:
+                    correo_electronico (str): Correo del usuario.
+                    contrasenia_plana (str): Contraseña en texto plano.
+        
+                Raises:
+                    ValueError: Si algún campo es inválido.
+                """
         if not isinstance(correo_electronico, str) or not correo_electronico.strip():
             raise ValueError("El correo electrónico es obligatorio.")
         if not isinstance(contrasenia_plana, str) or not contrasenia_plana:
             raise ValueError("La contraseña no puede estar vacía.")
 
-    def iniciar_sesion(self, correo_electronico, contrasenia_plana):
+    def iniciar_sesion(self, correo_electronico: str, contrasenia_plana: str) -> Optional[Usuario]:
+        """
+        Inicia sesión de un usuario.
+        
+        Args:
+            correo_electronico (str): Correo del usuario.
+            contrasenia_plana (str): Contraseña en texto plano.
+        
+        Returns:
+            Usuario: Objeto usuario si las credenciales son correctas, None en caso contrario.
+        """
         self._validar_entradas_login(correo_electronico, contrasenia_plana)
         correo_limpio = correo_electronico.strip()
 
-        usuario = None
-        if hasattr(self.usuario_dao, "iniciar_sesion"):
-            usuario = self.usuario_dao.iniciar_sesion(correo_limpio, contrasenia_plana)
-        elif hasattr(self.usuario_dao, "buscar_por_correo"):
-            u = self.usuario_dao.buscar_por_correo(correo_limpio)
-            if u and hasattr(u, "verificar_contrasenia") and u.verificar_contrasenia(contrasenia_plana):
-                usuario = u
+        #Usar el DAO para inciar sesion.
+        usuario = self.usuario_dao.iniciar_sesion(correo_limpio, contrasenia_plana)
 
         if usuario:
             self.usuario_actual = usuario
@@ -38,97 +68,53 @@ class ControlAutenticacion(ControlBase):
             self._registrar_log(correo_limpio, "LOGIN_FALLIDO")
             return None
 
-    def cerrar_sesion(self, usuario=None):
+    def cerrar_sesion(self, usuario: Optional[Usuario] = None) -> bool:
+        """
+        Cierra la sesion del usuario actual o del usuario especificado.
+
+        Args:
+            usuario (Usuario, optional): Usuario cuya sesion se cerrara.
+                Si no se proporciona, se usa el usuario actual.
+
+        Returns:
+            bool: Siempre True.
+        """
         usr = usuario or self.usuario_actual
         if usr:
             correo = getattr(usr, "correo_electronico", "USUARIO")
             self._registrar_log(correo, "LOGOUT")
         self.usuario_actual = None
         return True
-
-    def cerrarSesion(self, usuario=None):
+    
+    #Alias para compatibilidad con el DCD (camelCase)
+    def cerrarSesion(self, usuario: Optional[Usuario] = None) -> bool:
         return self.cerrar_sesion(usuario)
 
-    def validar_credenciales(self, correo_electronico, contrasenia_plana):
+    def validar_credenciales(self, correo_electronico: str, contrasenia_plana: str) -> Optional[Usuario]:
+        """
+        Valida las credenciales de un usuario sin modificar la sesion.
+
+        Args:
+            correo_electronico (str): Correo del usuario.
+            contrasenia_plana (str): Contrasena en texto plano.
+
+        Returns:
+            Usuario: Objeto usuario si las credenciales son correctas. None en caso contrario.
+        """
         if not isinstance(correo_electronico, str) or not correo_electronico.strip():
             return None
         if not isinstance(contrasenia_plana, str) or not contrasenia_plana:
             return None
 
         correo_limpio = correo_electronico.strip()
-        if hasattr(self.usuario_dao, "iniciar_sesion"):
-            return self.usuario_dao.iniciar_sesion(correo_limpio, contrasenia_plana)
-        elif hasattr(self.usuario_dao, "buscar_por_correo"):
-            u = self.usuario_dao.buscar_por_correo(correo_limpio)
-            if u and hasattr(u, "verificar_contrasenia") and u.verificar_contrasenia(contrasenia_plana):
-                return u
-        return None
+        return self.usuario_dao.iniciar_sesion(correo_limpio, contrasenia_plana)
 
-    def validarCredenciales(self, correo_electronico, contrasenia_plana):
+    #Alias para compatibilidad con el DCD
+    def validarCredenciales(self, correo_electronico: str, contrasenia_plana: str) -> Optional[Usuario]:
         return self.validar_credenciales(correo_electronico, contrasenia_plana)
 
-    def obtener_usuario_actual(self):
+    def obtener_usuario_actual(self) -> Optional[Usuario]:
         return self.usuario_actual
 
-    def esta_autenticado(self):
+    def esta_autenticado(self) -> bool:
         return self.usuario_actual is not None
-
-    def registrar_administrador(
-        self,
-        nombre,
-        apellido,
-        correo_electronico,
-        contrasenia_plana,
-        edad,
-    ):
-        """
-        Registra un nuevo administrador usando el Factory Method.
-        
-        Args:
-            nombre: Nombre del administrador
-            apellido: Apellido del administrador
-            correo_electronico: Correo electrónico
-            contrasenia_plana: Contraseña en texto plano
-            edad: Edad del administrador
-            
-        Returns:
-            Administrador creado
-        """
-        if not isinstance(nombre, str) or not nombre.strip():
-            raise ValueError("El nombre no puede estar vacío.")
-        
-        if not isinstance(apellido, str) or not apellido.strip():
-            raise ValueError("El apellido no puede estar vacío.")
-        
-        if not isinstance(correo_electronico, str) or not correo_electronico.strip():
-            raise ValueError("El correo electrónico es obligatorio.")
-        
-        if not isinstance(contrasenia_plana, str) or not contrasenia_plana:
-            raise ValueError("La contraseña no puede estar vacía.")
-        
-        if not isinstance(edad, int) or isinstance(edad, bool) or edad <= 0:
-            raise ValueError("La edad debe ser un número entero mayor que cero.")
-        
-        # Generar hash de contraseña
-        contrasenia_hash = GestorSeguridad.generar_hash(contrasenia_plana)
-        
-        # Usar Factory Method para crear el administrador
-        datos = {
-            "nombre": nombre.strip(),
-            "apellido": apellido.strip(),
-            "correo_electronico": correo_electronico.strip(),
-            "contrasenia_hash": contrasenia_hash,
-            "edad": edad,
-        }
-        
-        administrador = FabricaUsuario.crear_usuario("administrador", datos)
-        
-        # Guardar en BD
-        try:
-            admin_guardado = self.usuario_dao.guardar(administrador)
-            self._registrar_log(admin_guardado.correo_electronico, "REGISTRO_ADMINISTRADOR")
-            return admin_guardado
-        except ValueError as error:
-            raise ValueError(f"Error al registrar el administrador: {error}") from error
-        except Exception as error:
-            raise RuntimeError(f"Error inesperado al registrar administrador: {error}") from error

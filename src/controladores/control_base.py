@@ -1,27 +1,56 @@
 from datetime import datetime
 from pathlib import Path
-
+from typing import Optional
 
 class ControlBase:
+    #Clase base para todos los controladores del sistema.
+    #Centraliza el registro de auditoria en un archivo LOG.
 
-    def __init__(self, ruta_log="logs/LOG_CARDIO.txt"):
+    def __init__(self, ruta_log: str = "logs/LOG_CARDIO.txt") -> None:
+        """
+        Inicializa el controlador base con la ruta del archivo LOG.
+
+        Args:
+        ruta_log (str): Ruta al archivo de LOG (por defecto logs/LOG_CARDIO.txt)
+        """
         self.ruta_log = Path(ruta_log)
 
-    def _registrar_log(self, usuario, accion, detalle=None):
-        try:
-            self.ruta_log.parent.mkdir(parents=True, exist_ok=True)
-            fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            usuario_str = "SISTEMA" if usuario is None else str(usuario)
-            if detalle:
-                linea = f"{fecha_actual}, {usuario_str}, {accion}, {detalle}\n"
-            else:
-                linea = f"{fecha_actual}, {usuario_str}, {accion}\n"
+    def _registrar_log(self, usuario: Optional[str], accion: str) -> None:
+        """
+        Registra una actvidad en el archivo de auditoria.
 
+        El formato de cada linea es: FECHA, USUARIO, ACTIVIDAD
+        (cumple con el requisito de Auditoria de Sistemas)
+
+        Args:
+            usuario (str, optional): Nombre o identificador del usuario.
+            accion (str): Descripcion de la accion realizada.
+        """
+        try:
+            #Crear el directorio si no existe.
+            self.ruta_log.parent.mkdir(parents=True, exist_ok=True)
+
+            #Formatear fecha y hora.
+            fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            #Usuario por defecto si es None.
+            usuario_str = "SISTEMA" if usuario is None else str(usuario)
+
+            #Linea con formato FECHA, USUARIO, ACTIVIDAD.
+            linea = f"{fecha_actual}, {usuario_str}, {accion}\n"
+
+            #Escribir en el archivo (modo append)
             with open(self.ruta_log, mode="a", encoding="utf-8") as archivo:
                 archivo.write(linea)
-        except Exception:
-            pass
+        except Exception as e:
+            #No interrumpir la ejecucion del sistema si falla el LOG
+            #(se podria usar logging para depuracion)
+            import logging
+            logging.getLogger(__name__).warning(
+                f"No se pudo registrar la auditoria: {e}"
+            )
 
     # Alias para compatibilidad
-    def _registrar_auditoria(self, usuario, accion):
+    def _registrar_auditoria(self, usuario: Optional[str], accion: str) -> None:
+        #Alias de _registrar_log para mantener compatibilidad.
         self._registrar_log(usuario, accion)

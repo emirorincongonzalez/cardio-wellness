@@ -1,4 +1,5 @@
 from typing import List, Optional, Tuple
+
 from psycopg2 import IntegrityError
 
 
@@ -12,7 +13,7 @@ class ClienteDAO:
 
 
     def __init__(self) -> None:
-        #==Inicializa el DAO con la conexion Singleton==
+        """Inicializa el DAO con la conexión Singleton."""
         self._bd = ConexionBD.obtener_instancia()
 
 
@@ -21,21 +22,17 @@ class ClienteDAO:
         Guarda un nuevo cliente en la base de datos.
         Inserta en usuarios y clientes, y actualiza el objeto con los IDs generados.
         """
-
-
-        #Asegura que la conexion esta abierta
         self._bd.abrir_conexion()
 
 
         try:
             with self._bd._conexion.cursor() as cursor:
-                #Genera el hash de la contraseña antes de guardarlo
-                contrasenia_hash = GestorSeguridad.generar_hash(cliente.contrasenia_hash)
+                # Usar el hash que ya tiene el cliente (generado en el controlador)
+                contrasenia_hash = cliente.contrasenia_hash
 
-
-                #Inserta en la tabla usuarios
+                # Insertar en la tabla usuarios
                 consulta_usuario = """
-                    INSERT INTO usuarios(
+                    INSERT INTO usuarios (
                         nombre,
                         apellido,
                         correo_electronico,
@@ -43,7 +40,7 @@ class ClienteDAO:
                         edad,
                         tipo_usuario
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, 'cliente')
                     RETURNING id_usuario, fecha_registro
                 """
                 cursor.execute(
@@ -61,10 +58,9 @@ class ClienteDAO:
                 cliente.id_usuario = usuario_resultado[0]
                 cliente.fecha_registro = usuario_resultado[1]
 
-
-                #Insertar en clientes
+                # Insertar en clientes
                 consulta_cliente = """
-                    INSERT INTO clientes(
+                    INSERT INTO clientes (
                         id_usuario,
                         peso,
                         altura,
@@ -84,21 +80,14 @@ class ClienteDAO:
                 )
                 cliente.fecha_ingreso = cursor.fetchone()[0]
 
-
             self._bd._conexion.commit()
             return cliente
 
 
         except IntegrityError as error:
             self._bd._conexion.rollback()
-
-
             if error.pgcode == "23505":
-                raise ValueError(
-                    "El correo ya está registrado."
-                ) from error
-
-
+                raise ValueError("El correo ya está registrado.") from error
             raise
 
 
@@ -106,9 +95,8 @@ class ClienteDAO:
             self._bd._conexion.rollback()
             raise
 
-
     def buscar_por_id(self, id_usuario: int) -> Optional[Cliente]:
-        # Busca un cliente por su ID de usuario.
+        """Busca un cliente por su ID de usuario."""
         self._bd.abrir_conexion()
         try:
             with self._bd._conexion.cursor() as cursor:
@@ -130,21 +118,18 @@ class ClienteDAO:
                     JOIN clientes c
                         ON u.id_usuario = c.id_usuario
                     WHERE u.id_usuario = %s
-                        AND u.tipo_usuario = 'cliente'
+                      AND u.tipo_usuario = 'cliente'
                 """
                 cursor.execute(consulta, (id_usuario,))
                 fila = cursor.fetchone()
                 if fila is None:
                     return None
                 return self._crear_cliente_desde_fila(fila)
-
-
         except Exception:
             raise
 
-
     def buscar_por_correo(self, correo: str) -> Optional[Cliente]:
-        #Busca a un cliente por su correo electronico
+        """Busca un cliente por su correo electrónico."""
         self._bd.abrir_conexion()
         try:
             with self._bd._conexion.cursor() as cursor:
@@ -157,15 +142,16 @@ class ClienteDAO:
                         u."contraseña_hash",
                         u.edad,
                         u.tipo_usuario,
+                        u.fecha_registro,
                         c.peso,
                         c.altura,
                         c.objetivo,
-                        u.fecha_registro,
                         c.fecha_ingreso
                     FROM usuarios u
                     JOIN clientes c
                         ON u.id_usuario = c.id_usuario
                     WHERE u.correo_electronico = %s
+                      AND u.tipo_usuario = 'cliente'
                 """
                 cursor.execute(consulta, (correo,))
                 fila = cursor.fetchone()
@@ -175,9 +161,8 @@ class ClienteDAO:
         except Exception:
             raise
 
-
     def listar(self) -> List[Cliente]:
-        #Lista todos los clientes del sistema.
+        """Lista todos los clientes del sistema."""
         self._bd.abrir_conexion()
         try:
             with self._bd._conexion.cursor() as cursor:
@@ -378,9 +363,10 @@ class ClienteDAO:
             correo_electronico=fila[3],
             contrasenia_hash=fila[4],
             edad=fila[5],
-            fecha_registro=fila[10],
-            peso=float(fila[7]),
-            altura=float(fila[8]),
-            objetivo=fila[9],
+            tipo_usuario=fila[6],
+            fecha_registro=fila[7],
+            peso=fila[8],
+            altura=fila[9],
+            objetivo=fila[10],
             fecha_ingreso=fila[11],
         )

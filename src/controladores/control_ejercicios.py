@@ -1,217 +1,164 @@
-﻿from datetime import datetime
-from decimal import Decimal
-import inspect
-from pathlib import Path
-import sys
-import unicodedata
+﻿from decimal import Decimal
+from typing import Optional, Union
 
+from src.controladores.control_base import ControlBase
 from src.modelos.ejercicio_cardio import EjercicioCardio
+from src.modelos.enums import Intensidad
 from src.persistencia.ejercicio_dao import EjercicioDAO
 
 
-def _quitar_tildes(texto):
-    return "".join(
-        c for c in unicodedata.normalize("NFD", str(texto))
-        if unicodedata.category(c) != "Mn"
-    )
+class ControlEjercicios(ControlBase):
+    """
+    Controlador para la gestión de ejercicios cardiovasculares.
+    Coordina la creación, consulta, actualización y eliminación de ejercicios.
+    """
 
+    def __init__(
+        self,
+        ejercicio_dao: Optional[EjercicioDAO] = None,
+        ruta_log: str = "logs/LOG_CARDIO.txt"
+    ) -> None:
+        """
+        Inicializa el controlador de ejercicios.
 
-def _obtener_clase_intensidad():
-    modulo_ejercicio = sys.modules.get("src.modelos.ejercicio_cardio")
-    if modulo_ejercicio and hasattr(modulo_ejercicio, "Intensidad"):
-        return getattr(modulo_ejercicio, "Intensidad")
-    return getattr(EjercicioCardio, "Intensidad", None)
-
-
-def _obtener_intensidad_valida(valor="MEDIA"):
-    cls_int = _obtener_clase_intensidad()
-    if not cls_int:
-        return valor
-
-    if isinstance(valor, cls_int):
-        return valor
-
-    cadena = _quitar_tildes(str(valor)).strip().upper()
-
-    # Búsqueda por clave o valor directo
-    for miembro in cls_int:
-        if miembro.name.upper() == cadena:
-            return miembro
-        if _quitar_tildes(str(miembro.value)).strip().upper() == cadena:
-            return miembro
-
-    # Mapeo de sinónimos
-    mapeo = {
-        "LEVE": "BAJA",
-        "SUAVE": "BAJA",
-        "BAJA": "BAJA",
-        "BAJO": "BAJA",
-        "MEDIA": "MEDIA",
-        "MEDIO": "MEDIA",
-        "MODERADA": "MODERADA",
-        "MODERADO": "MODERADA",
-        "ALTA": "ALTA",
-        "ALTO": "ALTA",
-        "INTENSA": "ALTA",
-        "INTENSO": "ALTA",
-    }
-    clave_mapeada = mapeo.get(cadena)
-    if clave_mapeada:
-        for miembro in cls_int:
-            if miembro.name.upper() == clave_mapeada or _quitar_tildes(str(miembro.value)).strip().upper() == clave_mapeada:
-                return miembro
-
-    # Coincidencia parcial o fallback al primer miembro
-    for miembro in cls_int:
-        if miembro.name.upper() in cadena or cadena in miembro.name.upper():
-            return miembro
-
-    return list(cls_int)[0] if len(cls_int) > 0 else valor
-
-
-def _instanciar_ejercicio(
-    nombre,
-    descripcion,
-    duracion_minutos,
-    calorias_estimadas,
-    id_ejercicio=None,
-    tipo="Cardio",
-    intensidad="MEDIA",
-    **kwargs_extra,
-):
-    sig = inspect.signature(EjercicioCardio.__init__)
-    params = sig.parameters
-
-    intensidad_valida = _obtener_intensidad_valida(intensidad)
-
-    valores_base = {
-        "id_ejercicio": id_ejercicio,
-        "nombre": nombre,
-        "descripcion": descripcion,
-        "tipo": tipo or "Cardio",
-        "tipo_ejercicio": tipo or "Cardio",
-        "intensidad": intensidad_valida,
-        "nivel_intensidad": intensidad_valida,
-        "duracion_minutos": duracion_minutos,
-        "duracion": duracion_minutos,
-        "calorias_estimadas": calorias_estimadas,
-        "calorias_por_minuto": calorias_estimadas,
-        "calorias": calorias_estimadas,
-    }
-    valores_base.update(kwargs_extra)
-
-    kwargs = {}
-    for param_name, param in params.items():
-        if param_name == "self":
-            continue
-        if param_name in valores_base and valores_base[param_name] is not None:
-            kwargs[param_name] = valores_base[param_name]
-        elif param.default is inspect.Parameter.empty:
-            if "tipo" in param_name:
-                kwargs[param_name] = "Cardio"
-            elif "intensidad" in param_name:
-                kwargs[param_name] = intensidad_valida
-            elif "duracion" in param_name or "calorias" in param_name:
-                kwargs[param_name] = 1
-            else:
-                kwargs[param_name] = None
-
-    return EjercicioCardio(**kwargs)
-
-
-class ControlEjercicios:
-
-    def __init__(self, ejercicio_dao=None, ruta_log="logs/LOG_CARDIO.txt"):
+        Args:
+            ejercicio_dao (EjercicioDAO, optional): DAO de ejercicios. Si no se
+                proporciona, se crea uno por defecto.
+            ruta_log (str): Ruta al archivo de LOG para auditoría.
+        """
+        super().__init__(ruta_log=ruta_log)
         self.ejercicio_dao = ejercicio_dao or EjercicioDAO()
-        self.ruta_log = Path(ruta_log)
-
-    def _registrar_auditoria(self, usuario, accion):
-        try:
-            self.ruta_log.parent.mkdir(parents=True, exist_ok=True)
-            fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            usuario_str = "SISTEMA" if usuario is None else str(usuario)
-            linea_log = f"{fecha_actual}, {usuario_str}, {accion}\n"
-            with open(self.ruta_log, mode="a", encoding="utf-8") as archivo:
-                archivo.write(linea_log)
-        except Exception:
-            pass
 
     def crear_ejercicio(
         self,
-        nombre,
-        descripcion,
-        duracion_minutos,
-        calorias_estimadas,
-        tipo="Cardio",
-        intensidad="MEDIA",
-        usuario_creador=None,
-    ):
+        nombre: str,
+        descripcion: str,
+        tipo: str,
+        duracion_minutos: int,
+        intensidad: Union[Intensidad, str],
+        calorias_estimadas: float,
+        creado_por: Optional[int] = None,
+    ) -> EjercicioCardio:
+        """
+        Crea un nuevo ejercicio en el catálogo.
+
+        Args:
+            nombre (str): Nombre del ejercicio.
+            descripcion (str): Descripción detallada.
+            tipo (str): Tipo de ejercicio (ej. "LISS", "HIIT").
+            duracion_minutos (int): Duración en minutos.
+            intensidad (Intensidad o str): Nivel de intensidad.
+            calorias_estimadas (float): Calorías estimadas por sesión.
+            creado_por (int, optional): ID del administrador que lo crea.
+
+        Returns:
+            EjercicioCardio: Ejercicio guardado con ID asignado.
+        """
+        # Validaciones
         if not isinstance(nombre, str) or not nombre.strip():
             raise ValueError("El nombre del ejercicio no puede estar vacío.")
-
         if not isinstance(descripcion, str) or not descripcion.strip():
             raise ValueError("La descripción del ejercicio no puede estar vacía.")
-
-        if (
-            not isinstance(duracion_minutos, int)
-            or isinstance(duracion_minutos, bool)
-            or duracion_minutos <= 0
-        ):
-            raise ValueError("La duración en minutos debe ser un número entero mayor que cero.")
-
-        if (
-            not isinstance(calorias_estimadas, (int, float, Decimal))
-            or isinstance(calorias_estimadas, bool)
-            or calorias_estimadas <= 0
-        ):
+        if not isinstance(tipo, str) or not tipo.strip():
+            raise ValueError("El tipo del ejercicio no puede estar vacío.")
+        if not isinstance(duracion_minutos, int) or duracion_minutos <= 0:
+            raise ValueError("La duración en minutos debe ser un entero positivo.")
+        if not isinstance(calorias_estimadas, (int, float, Decimal)) or calorias_estimadas <= 0:
             raise ValueError("Las calorías estimadas deben ser un número mayor que cero.")
+        if creado_por is not None and (not isinstance(creado_por, int) or creado_por <= 0):
+            raise ValueError("El creador debe ser un ID de usuario válido.")
 
-        ejercicio = _instanciar_ejercicio(
+        # Normalizar intensidad si es string
+        if isinstance(intensidad, str):
+            try:
+                intensidad = Intensidad[intensidad.upper()]
+            except KeyError:
+                raise ValueError(f"Intensidad inválida: {intensidad}. Debe ser BAJA, MEDIA o ALTA.")
+
+        # Crear objeto EjercicioCardio
+        ejercicio = EjercicioCardio(
             nombre=nombre.strip(),
             descripcion=descripcion.strip(),
+            tipo=tipo.strip(),
             duracion_minutos=duracion_minutos,
-            calorias_estimadas=calorias_estimadas,
-            tipo=tipo,
             intensidad=intensidad,
+            calorias_estimadas=calorias_estimadas,
+            creado_por=creado_por,
         )
 
+        # Guardar y registrar LOG
         try:
             ejercicio_guardado = self.ejercicio_dao.guardar(ejercicio)
-            self._registrar_auditoria(usuario_creador or "SISTEMA", "CREACION_EJERCICIO")
+            self._registrar_log(creado_por or "SISTEMA", "CREACION_EJERCICIO")
             return ejercicio_guardado
         except ValueError as error:
-            raise ValueError(f"Error al crear el ejercicio: {error}") from error
+            raise ValueError(f"Error al guardar el ejercicio: {error}") from error
         except Exception as error:
-            raise RuntimeError(f"Error al crear el ejercicio: {error}") from error
+            raise RuntimeError(f"Error inesperado al crear ejercicio: {error}") from error
 
-    def buscar_por_id(self, id_ejercicio):
-        if not isinstance(id_ejercicio, int) or isinstance(id_ejercicio, bool) or id_ejercicio <= 0:
-            raise ValueError("El id de ejercicio debe ser un entero positivo.")
+    def buscar_por_id(self, id_ejercicio: int) -> Optional[EjercicioCardio]:
+        """Busca un ejercicio por su ID."""
+        if not isinstance(id_ejercicio, int) or id_ejercicio <= 0:
+            raise ValueError("El ID de ejercicio debe ser un entero positivo.")
         return self.ejercicio_dao.buscar_por_id(id_ejercicio)
 
-    # Alias
-    def obtener_por_id(self, id_ejercicio):
+    def obtener_por_id(self, id_ejercicio: int) -> Optional[EjercicioCardio]:
+        """Alias de buscar_por_id."""
         return self.buscar_por_id(id_ejercicio)
 
-    def listar(self):
+    def listar(self) -> list[EjercicioCardio]:
+        """Lista todos los ejercicios del catálogo."""
         return self.ejercicio_dao.listar()
 
-    # Alias
-    def listar_ejercicios(self):
+    def listar_ejercicios(self) -> list[EjercicioCardio]:
+        """Alias de listar."""
         return self.listar()
 
-    def actualizar_ejercicio(self, ejercicio):
+    def actualizar_ejercicio(self, ejercicio: EjercicioCardio) -> EjercicioCardio:
+        """
+        Actualiza un ejercicio existente.
+
+        Args:
+            ejercicio (EjercicioCardio): Objeto EjercicioCardio con datos actualizados.
+
+        Returns:
+            EjercicioCardio: Ejercicio actualizado.
+        """
         if not isinstance(ejercicio, EjercicioCardio):
             raise TypeError("Se requiere una instancia de EjercicioCardio.")
+
         try:
-            return self.ejercicio_dao.actualizar(ejercicio)
+            ejercicio_actualizado = self.ejercicio_dao.actualizar(ejercicio)
+            self._registrar_log(ejercicio.creado_por or "SISTEMA", "ACTUALIZACION_EJERCICIO")
+            return ejercicio_actualizado
         except ValueError as error:
-            raise ValueError(f"Error al actualizar el ejercicio: {error}") from error
+            raise ValueError(f"Error al actualizar ejercicio: {error}") from error
+        except Exception as error:
+            raise RuntimeError(f"Error inesperado al actualizar ejercicio: {error}") from error
 
-    def eliminar_ejercicio(self, id_ejercicio, usuario_accion=None):
-        if not isinstance(id_ejercicio, int) or isinstance(id_ejercicio, bool) or id_ejercicio <= 0:
-            raise ValueError("El id de ejercicio debe ser un entero positivo.")
+    def eliminar_ejercicio(
+        self,
+        id_ejercicio: int,
+        usuario_accion: Optional[str] = None
+    ) -> bool:
+        """
+        Elimina un ejercicio del catálogo.
 
-        resultado = self.ejercicio_dao.eliminar_por_id(id_ejercicio)
-        self._registrar_auditoria(usuario_accion or f"ID_{id_ejercicio}", "ELIMINACION_EJERCICIO")
-        return resultado
+        Args:
+            id_ejercicio (int): ID del ejercicio a eliminar.
+            usuario_accion (str, optional): Usuario que realiza la acción.
+
+        Returns:
+            bool: True si se eliminó correctamente.
+        """
+        if not isinstance(id_ejercicio, int) or id_ejercicio <= 0:
+            raise ValueError("El ID de ejercicio debe ser un entero positivo.")
+
+        try:
+            resultado = self.ejercicio_dao.eliminar_por_id(id_ejercicio)
+            self._registrar_log(usuario_accion or f"ID_{id_ejercicio}", "ELIMINACION_EJERCICIO")
+            return resultado
+        except ValueError as error:
+            raise ValueError(f"Error al eliminar ejercicio: {error}") from error
+        except Exception as error:
+            raise RuntimeError(f"Error inesperado al eliminar ejercicio: {error}") from error

@@ -1,0 +1,372 @@
+================================================================
+DOCUMENTACIÓN DE LA CAPA DE PERSISTENCIA
+Sistema: Cardio Wellness Manager
+Fecha: 07/09/2026
+Estado: DEFINITIVA
+================================================================
+
+1. INTRODUCCIÓN
+----------------------------------------------------------------
+La capa de persistencia constituye el puente entre el modelo de
+dominio y la base de datos. Su responsabilidad es almacenar,
+recuperar, actualizar y eliminar los objetos del dominio de forma
+transparente, manteniendo la integridad de los datos y aislando al
+resto del sistema de los detalles de acceso a la base de datos.
+
+Esta capa ha sido implementada siguiendo los principios de la
+Programación Orientada a Objetos (POO) y aplicando patrones de
+diseño reconocidos, como Singleton y Data Access Object (DAO).
+Está alineada con el Diagrama de Clases de Diseño (DCD) y el
+modelo relacional (DDL).
+
+ARCHIVOS QUE COMPONEN LA CAPA DE PERSISTENCIA:
+- conexion_bd.py          → ConexionBD (Singleton)
+- usuario_dao.py          → UsuarioDAO
+- cliente_dao.py          → ClienteDAO
+- ejercicio_dao.py        → EjercicioDAO
+- rutina_dao.py           → RutinaDAO
+- asignacion_rutina_dao.py→ AsignacionRutinaDAO
+- sesion_entrenamiento_dao.py → SesionEntrenamientoDAO
+- progreso_mensual_dao.py → ProgresoMensualDAO
+
+Todos estos archivos están disponibles en la carpeta `src/persistencia/`
+y se consideran definitivos. La capa está lista para su integración
+con los controladores y la interfaz de usuario.
+
+================================================================
+
+2. PATRONES DE DISEÑO APLICADOS
+----------------------------------------------------------------
+La capa de persistencia implementa dos patrones de diseño
+fundamentales: Singleton y Data Access Object (DAO).
+
+2.1 PATRÓN SINGLETON (ConexionBD)
+----------------------------------------------------------------
+El patrón Singleton garantiza que una clase tenga una única
+instancia durante toda la ejecución del programa, proporcionando
+un punto de acceso global a ella.
+
+¿POR QUÉ USAR SINGLETON EN LA CONEXIÓN A BD?
+- Evita abrir múltiples conexiones a la base de datos,
+  optimizando el rendimiento y el uso de recursos.
+- Centraliza la configuración de la conexión (host, puerto,
+  credenciales) en un solo lugar.
+- Facilita el manejo de transacciones y el cierre ordenado
+  de la conexión al finalizar la aplicación.
+
+APLICACIÓN EN EL CÓDIGO (conexion_bd.py):
+```python
+class ConexionBD:
+    _instancia: Optional['ConexionBD'] = None
+
+    def __new__(cls) -> 'ConexionBD':
+        if cls._instancia is None:
+            cls._instancia = super(ConexionBD, cls).__new__(cls)
+        return cls._instancia
+
+    @staticmethod
+    def obtener_instancia() -> 'ConexionBD':
+        return ConexionBD()
+
+El método __new__ controla la creación de la instancia,
+asegurando que solo exista una. El método estático
+obtener_instancia() devuelve esa única instancia.
+
+2.2 PATRÓN DAO (Data Access Object)
+----------------------------------------------------------------
+El patrón DAO separa la lógica de acceso a datos del resto del
+sistema. Cada entidad del dominio tiene su propio DAO, que
+encapsula todas las operaciones de persistencia relacionadas.
+
+¿POR QUÉ USAR DAO?
+
+- Aísla la lógica de negocio de los detalles de la base de datos.
+
+- Facilita el cambio de motor de base de datos (ej. de PostgreSQL
+    a SQLite) sin afectar al resto del sistema.
+
+- Centraliza las consultas SQL en un solo lugar, facilitando
+    su mantenimiento y optimización.
+
+- Permite aplicar el Principio de Responsabilidad Única (SRP):
+    cada DAO se ocupa de una sola entidad
+
+APLICACION EN EL CODIGO (ejemplo de ClienteDAO):
+class ClienteDAO:
+    def __init__(self) -> None:
+        self._bd = ConexionBD.obtener_instancia()
+
+    def guardar(self, cliente: Cliente) -> Cliente:
+        # Lógica de inserción en BD
+
+    def buscar_por_id(self, id_usuario: int) -> Optional[Cliente]:
+        # Lógica de consulta por ID
+
+    def listar(self) -> List[Cliente]:
+        # Lógica de listado
+
+================================================================
+
+3. BUENAS PRÁCTICAS DE POO APLICADAS
+----------------------------------------------------------------
+A continuación se detallan los principios fundamentales de la POO
+y cómo se han aplicado en la capa de persistencia.
+
+3.1 ENCAPSULAMIENTO
+----------------------------------------------------------------
+El encapsulamiento oculta los detalles internos de una clase y
+expone solo lo necesario a través de una interfaz pública.
+
+APLICACIÓN EN EL CÓDIGO:
+
+- Los DAOs ocultan las consultas SQL y el manejo de conexiones.
+
+- El usuario del DAO no necesita saber cómo se guarda un cliente
+  en la base de datos; solo llama a guardar(cliente).
+
+- Los atributos internos de los DAOs (como _bd) son privados.
+
+EJEMPLO:
+class UsuarioDAO:
+    def __init__(self) -> None:
+        self._conexion = ConexionBD.obtener_instancia()
+        # _conexion es privado, no accesible desde fuera
+
+3.2 ABSTRACCION
+----------------------------------------------------------------
+La abstracción permite definir interfaces generales que ocultan los
+detalles de implementación. En la capa de persistencia, los DAOs
+ofrecen métodos abstractos (en el sentido conceptual, no en el de
+Python) que representan operaciones de alto nivel.
+
+APLICACIÓN EN EL CÓDIGO:
+
+- guardar(), buscar_por_id(), listar() son operaciones
+  abstractas que no revelan cómo se ejecutan.
+
+- Los controladores usan estos métodos sin conocer los detalles
+  de la base de datos.
+
+3.3 HERENCIA
+----------------------------------------------------------------
+Aunque no hay herencia entre DAOs, se aplica el principio de
+herencia en el modelo de dominio que los DAOs manipulan.
+
+APLICACIÓN EN EL CÓDIGO:
+
+- UsuarioDAO maneja tanto Usuario como sus subclases
+  (Cliente, Administrador).
+
+- buscar_por_correo en UsuarioDAO retorna el tipo correcto
+  según el tipo_usuario de la base de datos.
+
+3.4 POLIMORFISMO
+----------------------------------------------------------------
+os DAOs trabajan con objetos del dominio, aprovechando el
+polimorfismo de estos.
+
+APLICACIÓN EN EL CÓDIGO:
+
+- UsuarioDAO.guardar() recibe un Usuario y, si es una
+  instancia de Cliente, también inserta en clientes.
+
+- El DAO no necesita saber el tipo concreto; usa isinstance()
+  para detectarlo y actuar en consecuencia.
+
+3.5 MANEJO DE EXCEPCIONES Y TRANSACCIONES
+---------------------------------------------------------------
+Los DAOs manejan excepciones de la base de datos y garantizan la
+integridad de las transacciones mediante commit y rollback.
+
+APLICACION EN EL CODIGO:
+try:
+    # Operaciones de BD
+    self._bd._conexion.commit()
+except IntegrityError as error:
+    self._bd._conexion.rollback()
+    if error.pgcode == "23505":
+        raise ValueError("El correo ya está registrado.")
+    raise
+except Exception:
+    self._bd._conexion.rollback()
+    raise
+
+- Cada operación que modifica datos (INSERT, UPDATE, DELETE)
+  usa commit para persistir los cambios.
+
+- Ante cualquier error, se hace rollback para no dejar
+  la base de datos en un estado inconsistente.
+
+- Los errores de integridad (como correo duplicado) se capturan
+  con pgcode y se transforman en errores de negocio
+  (ValueError) para la capa superior.
+
+3.6 MAPEO OBJETO-RELACIONAL (ORM MANUAL)
+---------------------------------------------------------------
+La capa de persistencia realiza un mapeo manual entre las filas
+de la base de datos (tuplas) y los objetos del dominio.
+
+APLICACIÓN EN EL CÓDIGO:
+
+    Métodos privados como _crear_cliente_desde_fila(fila) toman
+    una tupla y construyen el objeto correspondiente.
+
+    Este mapeo garantiza que los datos recuperados se conviertan
+    en objetos de dominio válidos, con todos sus atributos.
+
+EJEMPLO:
+@staticmethod
+def _crear_cliente_desde_fila(fila: Tuple) -> Cliente:
+    return Cliente(
+        id_usuario=fila[0],
+        nombre=fila[1],
+        apellido=fila[2],
+        correo_electronico=fila[3],
+        contrasenia_hash=fila[4],
+        edad=fila[5],
+        # ...
+    )
+
+3.7 USO DE TYPE HINTS
+---------------------------------------------------------------
+Todos los métodos de los DAOs utilizan type hints para indicar
+los tipos de los parámetros y el valor de retorno.
+
+APLICACIÓN EN EL CÓDIGO:
+
+- Mejora la legibilidad y el autocompletado en el IDE.
+
+- Ayuda a detectar errores de tipo en tiempo de desarrollo.
+
+- Documenta el código de forma explícita.
+
+EJEMPLO:
+def guardar(self, cliente: Cliente) -> Cliente:
+    ...
+
+================================================================
+
+4. ARQUITECTURA DE LA CAPA DE PERSISTENCIA
+--------------------------------------------------------------
+La capa de persistencia se organiza en torno a la conexión y
+los DAOs. Su estructura es la siguiente:
+
+┌─────────────────────────────────────────────┐
+│ CONEXIÓN 				      │
+│ ConexionBD (Singleton) 		      │
+│ - obtener_instancia()  		      │
+│ - abrir_conexion()  			      │
+│ - ejecutar_consulta() 		      │
+│ - ejecutar_actualizacion() 		      │
+└─────────────────────────────────────────────┘
+│
+│ (Dependencia)
+▼
+┌─────────────────────────────────────────────┐
+│ DAOs   				      │
+│ ┌────────────┐ ┌────────────┐ ┌────────────┐│
+│ │ UsuarioDAO │ │ ClienteDAO │ │EjercicioDAO││
+│ └────────────┘ └────────────┘ └────────────┘│
+│ ┌────────────┐ ┌────────────┐ ┌────────────┐│
+│ │ RutinaDAO  │ │ Asignacion │ │   Sesion   ││
+│ └────────────┘ │  RutinaDAO │ │    DAO     ││
+│ 		 └────────────┘ └────────────┘│
+│ ┌────────────┐		              │
+│ │ Progreso   │			      │
+│ │ MensualDAO │ 	 		      │
+│ └────────────┘ 			      │
+└─────────────────────────────────────────────┘
+│
+▼
+┌─────────────────────────────────────────────┐
+│ BASE DE DATOS				      │
+│ PostgreSQL                                  │
+│ - Tablas: usuarios, clientes, ejercicios,   │
+│ rutinas, asignaciones_rutina, sesiones,     │
+│ progreso_mensual, etc.                      │
+└─────────────────────────────────────────────┘
+
+================================================================
+
+5. FLUJO DE TRABAJO TÍPICO
+--------------------------------------------------------------
+1. El controlador solicita una operación al DAO (ej. guardar un
+   cliente).
+
+2. El DAO abre la conexión (o usa la existente) a través de
+   ConexionBD.obtener_instancia().abrir_conexion().
+
+3. El DAO ejecuta la consulta SQL correspondiente usando el
+   cursor de la conexión.
+
+4. Si la operación modifica datos, se hace commit; si falla,
+   se hace rollback.
+
+5. El DAO retorna el objeto actualizado o un resultado booleano.
+
+6. El controlador recibe el resultado y continúa con la lógica
+   de negocio.
+
+================================================================
+
+6. CONCURRENCIA CON EL DCD Y EL DDL
+------------------------------------------------------------
+La capa de persistencia está alineada con el DCD y el DDL en
+cuanto a nombres, tipos y relaciones.
+
+TABLA DE CORRESPONDENCIA:
+
+DCD (Clase) Python (DAO) DDL (tabla)
+Usuario UsuarioDAO usuarios
+Cliente ClienteDAO clientes + usuarios
+Administrador UsuarioDAO usuarios (con tipo)
+EjercicioCardio EjercicioDAO ejercicios
+Rutina RutinaDAO rutinas
+AsignacionRutina AsignacionRutinaDAO asignaciones_rutina
+SesionEntrenamiento SesionEntrenamientoDAO sesiones_entrenamiento
+ProgresoMensual ProgresoMensualDAO progreso_mensual
+
+Las relaciones (composición, agregación, herencia) se mantienen
+en el modelo relacional mediante claves foráneas y restricciones.
+
+================================================================
+
+7. CONCLUSIONES Y ESTADO ACTUAL
+------------------------------------------------------------
+La capa de persistencia del sistema Cardio Wellness Manager se
+encuentra completamente implementada y es funcional.
+
+CARACTERÍSTICAS DESTACADAS:
+
+    ✅ 100% alineada con el DCD y el DDL.
+
+    ✅ Aplica los patrones Singleton y DAO.
+
+    ✅ Usa type hints para mejorar la legibilidad.
+
+    ✅ Maneja transacciones con commit/rollback.
+
+    ✅ Captura y transforma errores de integridad en errores
+    de negocio (ValueError).
+
+    ✅ Mapeo manual eficiente entre filas y objetos del dominio.
+
+    ✅ Código documentado y organizado.
+
+PRÓXIMOS PASOS:
+
+    Pruebas de integración por parte del equipo.
+
+    Conexión con la capa de control (servicios).
+
+    Pruebas funcionales y de aceptación.
+
+    Preparación de la documentación final de auditoría.
+
+Este documento sirve como evidencia de que la capa de persistencia
+ha sido desarrollada siguiendo las mejores prácticas y está lista
+para ser utilizada en las siguientes fases del proyecto.
+
+================================================================
+FIN DEL DOCUMENTO
+================================================================

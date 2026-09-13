@@ -6,6 +6,7 @@ from src.controladores.control_clientes import ControlClientes
 from src.controladores.control_progreso import ControlProgreso
 from src.controladores.control_rutinas import ControlRutinas
 from src.servicios.generador_reportes_pdf import GeneradorReportesPDF
+from src.servicios.fabrica_usuario import FabricaUsuario
 
 
 def _normalizar_texto(texto):
@@ -30,6 +31,54 @@ class SistemaWellness(ControlBase):
         self.control_rutinas = control_rutinas or ControlRutinas(ruta_log=ruta_log)
         self.control_progreso = control_progreso or ControlProgreso(ruta_log=ruta_log)
         self.generador_pdf = generador_pdf or GeneradorReportesPDF()
+
+    def registrar_usuario(self, tipo: str, datos: dict, asignar_rutina_inicial: bool = True):
+        """
+        Registra un nuevo usuario usando el Factory Method.
+        
+        Args:
+            tipo: Tipo de usuario ('administrador' o 'cliente')
+            datos: Diccionario con los datos del usuario
+            asignar_rutina_inicial: Si es True, asigna rutina automáticamente a clientes
+            
+        Returns:
+            Usuario creado
+        """
+        # Usar Factory Method para crear el usuario
+        usuario = FabricaUsuario.crear_usuario(tipo, datos)
+        
+        # Guardar según el tipo
+        if tipo.lower().strip() == "cliente":
+            cliente = self.control_clientes.registrar_cliente(
+                nombre=datos.get("nombre", ""),
+                apellido=datos.get("apellido", ""),
+                correo_electronico=datos.get("correo_electronico", ""),
+                contrasenia_plana=datos.get("contrasenia_plana", ""),
+                edad=datos.get("edad", 0),
+                peso=datos.get("peso", 0.0),
+                altura=datos.get("altura", 0.0),
+                objetivo=datos.get("objetivo", ""),
+            )
+            
+            # Asignar rutina inicial si corresponde
+            if asignar_rutina_inicial:
+                rutina_sugerida = self.evaluar_objetivo_y_sugerir_rutina(cliente)
+                if rutina_sugerida:
+                    self.control_rutinas.asignar_rutina(cliente, rutina_sugerida)
+            
+            return cliente
+        
+        else:
+            # Para administrador, el controlador se encarga
+            from src.controladores.control_autenticacion import ControlAutenticacion
+            control_auth = ControlAutenticacion()
+            return control_auth.registrar_administrador(
+                nombre=datos.get("nombre", ""),
+                apellido=datos.get("apellido", ""),
+                correo_electronico=datos.get("correo_electronico", ""),
+                contrasenia_plana=datos.get("contrasenia_plana", ""),
+                edad=datos.get("edad", 0),
+            )
 
     def evaluar_objetivo_y_sugerir_rutina(self, cliente):
         objetivo = getattr(cliente, "objetivo", "") or ""

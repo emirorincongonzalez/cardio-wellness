@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 class ConexionBD:
     """
     Administra la conexión con PostgreSQL usando las variables del archivo .env.
+    Implementa el patrón Singleton para garantizar una única conexión.
     """
 
     _instancia: Optional["ConexionBD"] = None
@@ -62,7 +63,14 @@ class ConexionBD:
 
         try:
             self._conexion = psycopg2.connect(**self._config)
-            print("Conexion a la base de datos establecida.")
+            
+            # Configurar modo WAL para mejor concurrencia (si es SQLite)
+            # Para PostgreSQL, configurar parámetros de rendimiento
+            with self._conexion.cursor() as cursor:
+                # Configurar timezone
+                cursor.execute("SET TIME ZONE 'UTC'")
+            
+            print("Conexión a la base de datos establecida.")
         except psycopg2.OperationalError as error:
             raise RuntimeError(
                 f"Error al conectar a la base de datos: {error}"
@@ -73,7 +81,7 @@ class ConexionBD:
         if self._conexion is not None and not self._conexion.closed:
             self._conexion.close()
             self._conexion = None
-            print("Conexion a la base de datos cerrada.")
+            print("Conexión a la base de datos cerrada.")
 
     def _obtener_cursor(self):
         """Obtiene un cursor y abre la conexión si es necesario."""
@@ -154,3 +162,37 @@ class ConexionBD:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Cierra la conexión al finalizar un bloque with."""
         self.cerrar_conexion()
+
+    def verificar_integridad(self) -> bool:
+        """
+        Verifica la integridad de la conexión a la base de datos.
+        
+        Returns:
+            bool: True si la conexión es válida
+        """
+        try:
+            if self._conexion is None or self._conexion.closed:
+                return False
+            
+            # Ejecutar consulta simple para verificar conexión
+            with self._conexion.cursor() as cursor:
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+            
+            return True
+        except Exception:
+            return False
+
+    def obtener_configuracion(self) -> Dict[str, str]:
+        """
+        Obtiene la configuración actual de la conexión.
+        
+        Returns:
+            Dict: Configuración de la base de datos (sin password)
+        """
+        return {
+            "host": self._config.get("host", "localhost"),
+            "port": self._config.get("port", "5432"),
+            "dbname": self._config.get("dbname", ""),
+            "user": self._config.get("user", ""),
+        }

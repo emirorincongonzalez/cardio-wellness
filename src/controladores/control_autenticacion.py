@@ -1,5 +1,7 @@
 ﻿from src.controladores.control_base import ControlBase
 from src.persistencia.usuario_dao import UsuarioDAO
+from src.servicios.fabrica_usuario import FabricaUsuario
+from src.servicios.gestor_seguridad import GestorSeguridad
 
 
 class ControlAutenticacion(ControlBase):
@@ -70,3 +72,63 @@ class ControlAutenticacion(ControlBase):
 
     def esta_autenticado(self):
         return self.usuario_actual is not None
+
+    def registrar_administrador(
+        self,
+        nombre,
+        apellido,
+        correo_electronico,
+        contrasenia_plana,
+        edad,
+    ):
+        """
+        Registra un nuevo administrador usando el Factory Method.
+        
+        Args:
+            nombre: Nombre del administrador
+            apellido: Apellido del administrador
+            correo_electronico: Correo electrónico
+            contrasenia_plana: Contraseña en texto plano
+            edad: Edad del administrador
+            
+        Returns:
+            Administrador creado
+        """
+        if not isinstance(nombre, str) or not nombre.strip():
+            raise ValueError("El nombre no puede estar vacío.")
+        
+        if not isinstance(apellido, str) or not apellido.strip():
+            raise ValueError("El apellido no puede estar vacío.")
+        
+        if not isinstance(correo_electronico, str) or not correo_electronico.strip():
+            raise ValueError("El correo electrónico es obligatorio.")
+        
+        if not isinstance(contrasenia_plana, str) or not contrasenia_plana:
+            raise ValueError("La contraseña no puede estar vacía.")
+        
+        if not isinstance(edad, int) or isinstance(edad, bool) or edad <= 0:
+            raise ValueError("La edad debe ser un número entero mayor que cero.")
+        
+        # Generar hash de contraseña
+        contrasenia_hash = GestorSeguridad.generar_hash(contrasenia_plana)
+        
+        # Usar Factory Method para crear el administrador
+        datos = {
+            "nombre": nombre.strip(),
+            "apellido": apellido.strip(),
+            "correo_electronico": correo_electronico.strip(),
+            "contrasenia_hash": contrasenia_hash,
+            "edad": edad,
+        }
+        
+        administrador = FabricaUsuario.crear_usuario("administrador", datos)
+        
+        # Guardar en BD
+        try:
+            admin_guardado = self.usuario_dao.guardar(administrador)
+            self._registrar_log(admin_guardado.correo_electronico, "REGISTRO_ADMINISTRADOR")
+            return admin_guardado
+        except ValueError as error:
+            raise ValueError(f"Error al registrar el administrador: {error}") from error
+        except Exception as error:
+            raise RuntimeError(f"Error inesperado al registrar administrador: {error}") from error

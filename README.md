@@ -139,3 +139,14 @@ Proyecto desarrollado para fines académicos.
 **Versión:** 1.0.0  
 **Última actualización:** 2026-09-13  
 **Estado:** ✅ Producción
+
+## Nota sobre la base de datos
+
+El plan original especifica SQLite, pero este proyecto utiliza **PostgreSQL 17** para mayor robustez en entornos multiusuario. PostgreSQL ofrece:
+
+- Múltiples escritores simultáneos (SQLite solo permite 1)
+- Mayor integridad referencial
+- Mejor manejo de transacciones concurrentes
+- Escalabilidad horizontal futura
+
+Los scripts de backup, verificación de integridad y mantenimiento están adaptados para PostgreSQL.

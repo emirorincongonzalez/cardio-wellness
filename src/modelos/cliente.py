@@ -1,11 +1,16 @@
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
 from typing import Optional
 
 from src.modelos.usuario import Usuario
 
 
 class Cliente(Usuario):
+    """
+    Representa a un cliente del sistema Cardio Wellness.
+
+    El tipo de usuario se fuerza siempre a "cliente".
+    """
 
     def __init__(
         self,
@@ -27,7 +32,7 @@ class Cliente(Usuario):
             correo_electronico=correo_electronico,
             contrasenia_hash=contrasenia_hash,
             edad=edad,
-            tipo_usuario="cliente", #forzar el tipo de usuario a cliente
+            tipo_usuario="cliente",
             id_usuario=id_usuario,
             fecha_registro=fecha_registro,
         )
@@ -37,9 +42,9 @@ class Cliente(Usuario):
         self.objetivo = objetivo
         self.fecha_ingreso = fecha_ingreso
 
-#==Propiedades==
     @property
     def peso(self) -> Decimal:
+        """Peso actual del cliente."""
         return self._peso
 
     @peso.setter
@@ -55,6 +60,7 @@ class Cliente(Usuario):
 
     @property
     def altura(self) -> Decimal:
+        """Altura del cliente."""
         return self._altura
 
     @altura.setter
@@ -70,6 +76,7 @@ class Cliente(Usuario):
 
     @property
     def objetivo(self) -> str:
+        """Objetivo de entrenamiento del cliente."""
         return self._objetivo
 
     @objetivo.setter
@@ -81,27 +88,31 @@ class Cliente(Usuario):
 
     @property
     def fecha_ingreso(self) -> date:
+        """Fecha de ingreso del cliente."""
         return self._fecha_ingreso
 
     @fecha_ingreso.setter
     def fecha_ingreso(self, valor: Optional[date]) -> None:
-        self._fecha_ingreso = valor if valor is not None else date.today()
+        self._fecha_ingreso = (
+            valor if valor is not None else date.today()
+        )
 
-#==Metodos de DCD==
     def actualizar_peso(self, nuevo_peso: float) -> None:
+        """Actualiza el peso del cliente."""
         self.peso = nuevo_peso
 
     def actualizar_objetivo(self, nuevo_objetivo: str) -> None:
+        """Actualiza el objetivo del cliente."""
         self.objetivo = nuevo_objetivo
 
-#==Implementacion de metodo abstracto==
     def obtener_tipo_usuario(self) -> str:
+        """Devuelve el tipo de usuario."""
         return "cliente"
 
-#==Representacion==
     def __repr__(self) -> str:
         return (
-            f"Cliente(id_usuario={self.id_usuario}, "
+            f"Cliente("
+            f"id_usuario={self.id_usuario}, "
             f"nombre='{self.nombre}', "
             f"correo='{self.correo_electronico}', "
             f"peso={self.peso}, "

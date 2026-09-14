@@ -1,275 +1,176 @@
-﻿from typing import Optional, Union
+﻿"""
+Controlador para la gestión de rutinas de entrenamiento.
+"""
+from typing import Optional, Union
 
-from src.controladores.control_base import ControlBase
-from src.modelos.enums import NivelRutina
-from src.modelos.rutina import Rutina
-from src.persistencia.asignacion_rutina_dao import AsignacionRutinaDAO
+from src.modelos.rutina import Rutina, NivelRutina
 from src.persistencia.rutina_dao import RutinaDAO
+from src.persistencia.asignacion_rutina_dao import AsignacionRutinaDAO
+from src.controladores.control_base import ControlBase
+
+
+def _instanciar_rutina(
+    id_rutina: Optional[int] = None,
+    nombre: str = "",
+    descripcion: str = "",
+    nivel_dificultad: Union[str, NivelRutina] = "BASICO",
+    duracion_estimada: int = 30,
+    objetivo: str = "cardio",
+    creado_por: int = 1,
+) -> Rutina:
+    """
+    Función helper para crear instancias de Rutina.
+    Útil para tests y creación rápida de objetos.
+    """
+    nivel = nivel_dificultad if isinstance(nivel_dificultad, NivelRutina) else NivelRutina(nivel_dificultad)
+    
+    rutina = Rutina(
+        nombre=nombre,
+        descripcion=descripcion,
+        objetivo=objetivo,
+        nivel=nivel,
+        duracion_semanas=duracion_estimada,
+        creado_por=creado_por,
+    )
+    if id_rutina is not None:
+        rutina.id_rutina = id_rutina
+    return rutina
 
 
 class ControlRutinas(ControlBase):
     """
-    Controlador para la gestión de rutinas.
-    Coordina la creación, actualización, eliminación y asignación de rutinas.
+    Controlador para operaciones CRUD de rutinas.
     """
 
     def __init__(
         self,
-        rutina_dao: Optional[RutinaDAO] = None,
-        asignacion_dao: Optional[AsignacionRutinaDAO] = None,
-        ruta_log: str = "logs/LOG_CARDIO.txt"
-    ) -> None:
-        """
-        Inicializa el controlador de rutinas.
+        rutina_dao: RutinaDAO,
+        asignacion_dao: AsignacionRutinaDAO,
+        ruta_log: str = "logs/LOG_CARDIO.txt",
+    ):
+        super().__init__(ruta_log)
+        self._rutina_dao = rutina_dao
+        self._asignacion_dao = asignacion_dao
 
-        Args:
-            rutina_dao (RutinaDAO, optional): DAO de rutinas.
-            asignacion_dao (AsignacionRutinaDAO, optional): DAO de asignaciones.
-            ruta_log (str): Ruta al archivo de LOG.
-        """
-        super().__init__(ruta_log=ruta_log)
-        self.rutina_dao = rutina_dao or RutinaDAO()
-        self.asignacion_dao = asignacion_dao or AsignacionRutinaDAO()
+    @property
+    def rutina_dao(self) -> RutinaDAO:
+        return self._rutina_dao
+
+    @property
+    def asignacion_dao(self) -> AsignacionRutinaDAO:
+        return self._asignacion_dao
 
     def crear_rutina(
         self,
         nombre: str,
         descripcion: str,
-        objetivo: str,
-        nivel: Union[NivelRutina, str],
-        duracion_semanas: int,
-        creado_por: Optional[int] = None,
+        nivel_dificultad: Union[str, NivelRutina],
+        duracion_estimada: Union[int, float],
+        creado_por: int,
+        objetivo: str = "cardio",
     ) -> Rutina:
         """
-        Crea una nueva rutina en el sistema.
-
-        Args:
-            nombre (str): Nombre de la rutina.
-            descripcion (str): Descripción detallada.
-            objetivo (str): Objetivo de la rutina.
-            nivel (NivelRutina o str): Nivel de dificultad.
-            duracion_semanas (int): Duración en semanas.
-            creado_por (int, optional): ID del administrador que la crea.
-
-        Returns:
-            Rutina: Rutina guardada con ID asignado.
+        Crea una nueva rutina con validaciones.
         """
-        # Validaciones
-        if not isinstance(nombre, str) or not nombre.strip():
-            raise ValueError("El nombre de la rutina no puede estar vacío.")
-        if not isinstance(descripcion, str) or not descripcion.strip():
-            raise ValueError("La descripción no puede estar vacía.")
-        if not isinstance(objetivo, str) or not objetivo.strip():
-            raise ValueError("El objetivo no puede estar vacío.")
-        if not isinstance(duracion_semanas, int) or duracion_semanas <= 0:
-            raise ValueError("La duración en semanas debe ser un entero positivo.")
-        if creado_por is not None and (not isinstance(creado_por, int) or creado_por <= 0):
-            raise ValueError("El creador debe ser un ID de usuario válido.")
+        if not nombre or not nombre.strip():
+            raise ValueError("El nombre de la rutina no puede estar vacío")
+        if not descripcion or not descripcion.strip():
+            raise ValueError("La descripción no puede estar vacía")
+        if not isinstance(duracion_estimada, (int, float)) or duracion_estimada <= 0:
+            raise ValueError("La duración debe ser un número positivo")
+        if not isinstance(creado_por, int) or creado_por <= 0:
+            raise ValueError("El ID del creador debe ser un entero positivo")
 
-        # Normalizar nivel si es string
-        if isinstance(nivel, str):
-            try:
-                nivel = NivelRutina[nivel.upper()]
-            except KeyError:
-                raise ValueError(f"Nivel inválido: {nivel}. Debe ser BASICO, INTERMEDIO o AVANZADO.")
+        nivel = nivel_dificultad if isinstance(nivel_dificultad, NivelRutina) else NivelRutina(nivel_dificultad)
 
-        # Crear objeto Rutina
         rutina = Rutina(
             nombre=nombre.strip(),
             descripcion=descripcion.strip(),
-            objetivo=objetivo.strip(),
+            objetivo=objetivo,
             nivel=nivel,
-            duracion_semanas=duracion_semanas,
+            duracion_semanas=int(duracion_estimada),
             creado_por=creado_por,
         )
 
-        # Guardar y registrar LOG
-        try:
-            rutina_guardada = self.rutina_dao.guardar(rutina)
-            self._registrar_log(creado_por or "SISTEMA", "CREACION_RUTINA")
-            return rutina_guardada
-        except ValueError as error:
-            raise ValueError(f"Error al guardar la rutina: {error}") from error
-        except Exception as error:
-            raise RuntimeError(f"Error inesperado al crear rutina: {error}") from error
+        rutina_guardada = self._rutina_dao.guardar(rutina)
+        self._registrar_log(str(creado_por), f"CREACION_RUTINA ID: {rutina_guardada.id_rutina}")
+        return rutina_guardada
 
     def buscar_por_id(self, id_rutina: int) -> Optional[Rutina]:
         """Busca una rutina por su ID."""
-        if not isinstance(id_rutina, int) or id_rutina <= 0:
-            raise ValueError("El ID de rutina debe ser un entero positivo.")
-        return self.rutina_dao.buscar_por_id(id_rutina)
+        if id_rutina <= 0:
+            raise ValueError("El ID debe ser positivo")
+        return self._rutina_dao.buscar_por_id(id_rutina)
 
     def obtener_por_id(self, id_rutina: int) -> Optional[Rutina]:
         """Alias de buscar_por_id."""
         return self.buscar_por_id(id_rutina)
 
-    def listar(self) -> list[Rutina]:
+    def listar(self) -> list:
         """Lista todas las rutinas."""
-        return self.rutina_dao.listar()
+        return self._rutina_dao.listar()
 
-    def listar_rutinas(self) -> list[Rutina]:
+    def listar_rutinas(self) -> list:
         """Alias de listar."""
         return self.listar()
 
     def actualizar_rutina(self, rutina: Rutina) -> Rutina:
-        """
-        Actualiza una rutina existente.
-
-        Args:
-            rutina (Rutina): Objeto Rutina con datos actualizados.
-
-        Returns:
-            Rutina: Rutina actualizada.
-        """
+        """Actualiza una rutina existente."""
         if not isinstance(rutina, Rutina):
-            raise TypeError("Se requiere una instancia de Rutina.")
-        try:
-            rutina_actualizada = self.rutina_dao.actualizar(rutina)
-            self._registrar_log(rutina.creado_por or "SISTEMA", "ACTUALIZACION_RUTINA")
-            return rutina_actualizada
-        except ValueError as error:
-            raise ValueError(f"Error al actualizar rutina: {error}") from error
-        except Exception as error:
-            raise RuntimeError(f"Error inesperado al actualizar rutina: {error}") from error
+            raise TypeError("Debe proporcionar una instancia de Rutina")
+        return self._rutina_dao.actualizar(rutina)
+
+    def eliminar_rutina(self, id_rutina: int, usuario_accion: int) -> bool:
+        """Elimina una rutina por ID."""
+        resultado = self._rutina_dao.eliminar_por_id(id_rutina)
+        if resultado:
+            self._registrar_log(str(usuario_accion), f"ELIMINACION_RUTINA ID: {id_rutina}")
+        return resultado
 
     def agregar_ejercicio_a_rutina(
-        self,
-        id_rutina: int,
-        id_ejercicio: int,
-        orden_ejercicio: int,
+        self, id_rutina: int, id_ejercicio: int, orden: int = 1, usuario_accion: int = 1
     ) -> bool:
-        """
-        Asocia un ejercicio a una rutina con un orden específico.
-
-        Args:
-            id_rutina (int): ID de la rutina.
-            id_ejercicio (int): ID del ejercicio.
-            orden_ejercicio (int): Orden dentro de la rutina.
-
-        Returns:
-            bool: True si se agregó correctamente.
-        """
-        if not isinstance(id_rutina, int) or id_rutina <= 0:
-            raise ValueError("El ID de rutina debe ser un entero positivo.")
-        if not isinstance(id_ejercicio, int) or id_ejercicio <= 0:
-            raise ValueError("El ID de ejercicio debe ser un entero positivo.")
-        if not isinstance(orden_ejercicio, int) or orden_ejercicio <= 0:
-            raise ValueError("El orden debe ser un entero positivo.")
-
-        try:
-            resultado = self.rutina_dao.agregar_ejercicio(id_rutina, id_ejercicio, orden_ejercicio)
-            self._registrar_log(f"RUTINA_{id_rutina}", "AGREGAR_EJERCICIO")
-            return resultado
-        except ValueError as error:
-            raise ValueError(f"Error al asociar ejercicio: {error}") from error
-        except Exception as error:
-            raise RuntimeError(f"Error inesperado al agregar ejercicio: {error}") from error
+        """Agrega un ejercicio a una rutina."""
+        resultado = self._rutina_dao.agregar_ejercicio(id_rutina, id_ejercicio, orden)
+        if resultado:
+            self._registrar_log(str(usuario_accion), f"AGREGAR_EJERCICIO_A_RUTINA ID: {id_rutina}")
+        return resultado
 
     def eliminar_ejercicio_de_rutina(
-        self,
-        id_rutina: int,
-        id_ejercicio: int,
+        self, id_rutina: int, id_ejercicio: int, usuario_accion: int = 1
     ) -> bool:
-        """
-        Elimina la asociación entre una rutina y un ejercicio.
-
-        Args:
-            id_rutina (int): ID de la rutina.
-            id_ejercicio (int): ID del ejercicio.
-
-        Returns:
-            bool: True si se eliminó correctamente.
-        """
-        if not isinstance(id_rutina, int) or id_rutina <= 0:
-            raise ValueError("El ID de rutina debe ser un entero positivo.")
-        if not isinstance(id_ejercicio, int) or id_ejercicio <= 0:
-            raise ValueError("El ID de ejercicio debe ser un entero positivo.")
-
-        try:
-            resultado = self.rutina_dao.eliminar_ejercicio(id_rutina, id_ejercicio)
-            self._registrar_log(f"RUTINA_{id_rutina}", "ELIMINAR_EJERCICIO")
-            return resultado
-        except Exception as error:
-            raise RuntimeError(f"Error inesperado al eliminar ejercicio: {error}") from error
+        """Elimina un ejercicio de una rutina."""
+        resultado = self._rutina_dao.eliminar_ejercicio(id_rutina, id_ejercicio)
+        if resultado:
+            self._registrar_log(str(usuario_accion), f"ELIMINAR_EJERCICIO_DE_RUTINA ID: {id_rutina}")
+        return resultado
 
     def asignar_rutina(
         self,
-        id_cliente: int,
-        id_rutina: int,
+        cliente: Union[int, object],
+        rutina: Union[int, object],
+        asignado_por: int,
         observaciones: str = "",
-        usuario_accion: Optional[str] = None,
-    ) -> bool:
+    ) -> dict:
         """
         Asigna una rutina a un cliente.
-        Si el cliente ya tiene una rutina activa, la finaliza automáticamente.
-
-        Args:
-            id_cliente (int): ID del cliente.
-            id_rutina (int): ID de la rutina.
-            observaciones (str): Observaciones de la asignación.
-            usuario_accion (str, optional): Usuario que realiza la acción.
-
-        Returns:
-            bool: True si la asignación fue exitosa.
         """
-        if not isinstance(id_cliente, int) or id_cliente <= 0:
-            raise ValueError("El ID de cliente debe ser un entero positivo.")
-        if not isinstance(id_rutina, int) or id_rutina <= 0:
-            raise ValueError("El ID de rutina debe ser un entero positivo.")
+        id_cliente = cliente.id_usuario if hasattr(cliente, 'id_usuario') else int(cliente)
+        id_rutina = rutina.id_rutina if hasattr(rutina, 'id_rutina') else int(rutina)
 
-        try:
-            # Verificar si el cliente ya tiene una rutina activa
-            asignacion_activa = self.asignacion_dao.buscar_activa(id_cliente)
-            if asignacion_activa:
-                # Finalizar la asignación activa
-                self.asignacion_dao.actualizar(asignacion_activa)
-                self._registrar_log(
-                    usuario_accion or f"CLIENTE_{id_cliente}",
-                    "FINALIZAR_ASIGNACION_ACTIVA"
-                )
+        if id_cliente <= 0 or id_rutina <= 0:
+            raise ValueError("Los IDs deben ser positivos")
 
-            # Crear nueva asignación
-            from src.modelos.asignacion_rutina import AsignacionRutina
-            from src.modelos.enums import EstadoAsignacion
+        asignacion_activa = self._asignacion_dao.obtener_activa_por_cliente(id_cliente)
+        if asignacion_activa:
+            self._asignacion_dao.finalizar_asignacion(asignacion_activa.id_asignacion)
 
-            nueva_asignacion = AsignacionRutina(
-                id_cliente=id_cliente,
-                id_rutina=id_rutina,
-                observaciones=observaciones,
-                estado=EstadoAsignacion.ACTIVA,
-            )
-            self.asignacion_dao.guardar(nueva_asignacion)
+        resultado = self._asignacion_dao.asignar(
+            id_cliente=id_cliente,
+            id_rutina=id_rutina,
+            asignado_por=asignado_por,
+            observaciones=observaciones,
+        )
 
-            self._registrar_log(
-                usuario_accion or f"CLIENTE_{id_cliente}",
-                f"ASIGNACION_RUTINA_{id_rutina}"
-            )
-            return True
-
-        except ValueError as error:
-            raise ValueError(f"Error al asignar rutina: {error}") from error
-        except Exception as error:
-            raise RuntimeError(f"Error inesperado al asignar rutina: {error}") from error
-
-    def eliminar_rutina(self, id_rutina: int, usuario_accion: Optional[str] = None) -> bool:
-        """
-        Elimina una rutina del sistema.
-
-        Args:
-            id_rutina (int): ID de la rutina a eliminar.
-            usuario_accion (str, optional): Usuario que realiza la acción.
-
-        Returns:
-            bool: True si se eliminó correctamente.
-        """
-        if not isinstance(id_rutina, int) or id_rutina <= 0:
-            raise ValueError("El ID de rutina debe ser un entero positivo.")
-
-        try:
-            resultado = self.rutina_dao.eliminar_por_id(id_rutina)
-            self._registrar_log(usuario_accion or f"RUTINA_{id_rutina}", "ELIMINACION_RUTINA")
-            return resultado
-        except ValueError as error:
-            raise ValueError(f"Error al eliminar rutina: {error}") from error
-        except Exception as error:
-            raise RuntimeError(f"Error inesperado al eliminar rutina: {error}") from error
+        self._registrar_log(str(asignado_por), f"ASIGNACION_RUTINA Cliente: {id_cliente}, Rutina: {id_rutina}")
+        return resultado

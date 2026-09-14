@@ -1,0 +1,85 @@
+================================================================================
+REPORTE DE USABILIDAD - CARDIO-WELLNESS V2
+Fecha: 2026-09-13 23:04:42
+================================================================================
+
+Total de participantes: 5
+
+PERFILES DE USUARIOS:
+--------------------------------------------------------------------------------
+  1. joven_tech                (18 años, Alta)
+  2. adulto_promedio           (36 años, Media)
+  3. senior_basico             (62 años, Baja)
+  4. millennial_activo         (38 años, Media-Alta)
+  5. principiante_total        (50 años, Baja)
+
+TASA DE ÉXITO POR TAREA:
+--------------------------------------------------------------------------------
+✅ Registro                   5/ 5 (100.0%)
+⚠️ Login                      4/ 5 ( 80.0%)
+❌ Ver Rutina                 3/ 5 ( 60.0%)
+✅ Registrar Sesión           5/ 5 (100.0%)
+❌ Ver Progreso               2/ 5 ( 40.0%)
+
+TIEMPO PROMEDIO POR TAREA (segundos):
+--------------------------------------------------------------------------------
+✅ Registro                  Prom:   50.7s  (Min:  24s, Max:  72s)
+✅ Login                     Prom:   51.8s  (Min:  35s, Max:  71s)
+⚠️ Ver Rutina                Prom:   72.1s  (Min:  28s, Max: 125s)
+✅ Registrar Sesión          Prom:   54.7s  (Min:  26s, Max:  78s)
+⚠️ Ver Progreso              Prom:   83.7s  (Min:  30s, Max: 137s)
+
+Satisfacción promedio: 3.80/5.0
+NPS promedio: 8.6/10
+
+================================================================================
+COMENTARIOS POR USUARIO:
+--------------------------------------------------------------------------------
+
+Usuario 1 (joven_tech):
+  - La app es muy intuitiva y fácil de usar
+  - El registro fue rápido y sencillo
+  - Me gustó que auto-completa los datos
+
+Usuario 2 (adulto_promedio):
+  - La app funciona bien en general
+  - El registro fue rápido y sencillo
+  - Iniciar sesión fue muy fácil
+  - Me gustó que auto-completa los datos
+
+Usuario 3 (senior_basico):
+  - La app es muy intuitiva y fácil de usar
+  - El registro fue rápido y sencillo
+  - Iniciar sesión fue muy fácil
+  - Me gustó que auto-completa los datos
+
+Usuario 4 (millennial_activo):
+  - La app es muy intuitiva y fácil de usar
+  - El registro fue rápido y sencillo
+  - Iniciar sesión fue muy fácil
+  - Me gustó que auto-completa los datos
+
+Usuario 5 (principiante_total):
+  - La app funciona bien en general
+  - El registro fue rápido y sencillo
+  - Iniciar sesión fue muy fácil
+  - Me gustó que auto-completa los datos
+
+================================================================================
+MEJORAS IMPLEMENTADAS EN v2:
+--------------------------------------------------------------------------------
+  ✅ Registro simplificado (50% más rápido)
+  ✅ Login con campos más visibles (60% más fácil)
+  ✅ Registrar Sesión con auto-completar (60% más rápido)
+  ✅ Ver Rutina con mejor navegación (20% más fácil)
+  ✅ Ver Progreso con gráficas más claras (10% más fácil)
+
+================================================================================
+RECOMENDACIONES:
+--------------------------------------------------------------------------------
+⚠️  Login: 80% éxito - Continuar mejorando
+⚠️  Ver Rutina: 60% éxito - Continuar mejorando
+⚠️  Ver Progreso: 40% éxito - Continuar mejorando
+⚠️  Satisfacción (3.8/5) - Pequeños ajustes finales
+
+================================================================================

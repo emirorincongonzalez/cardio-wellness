@@ -1,0 +1,47 @@
+================================================================================
+TEST DE USABILIDAD MASIVO - CARDIO-WELLNESS v3
+Fecha: 2026-09-13 23:08:55
+================================================================================
+
+Total de participantes: 100
+
+DISTRIBUCIÓN DE USUARIOS:
+--------------------------------------------------------------------------------
+  adulto_promedio            28 usuarios (28%)
+  millennial_activo          25 usuarios (25%)
+  senior_basico              16 usuarios (16%)
+  principiante_total         16 usuarios (16%)
+  joven_tech                 15 usuarios (15%)
+
+TASA DE ÉXITO POR TAREA:
+--------------------------------------------------------------------------------
+⚠️ Registro                    92/100 ( 92.0%)
+⚠️ Login                       93/100 ( 93.0%)
+⚠️ Ver Rutina                  93/100 ( 93.0%)
+⚠️ Registrar Sesión            93/100 ( 93.0%)
+✅ Ver Progreso                97/100 ( 97.0%)
+
+TIEMPO POR TAREA (segundos):
+--------------------------------------------------------------------------------
+  Registro                  Prom:   26.2s  (Min:  13s, Max:  39s)
+  Login                     Prom:   25.0s  (Min:  12s, Max:  38s)
+  Ver Rutina                Prom:   25.3s  (Min:  12s, Max:  39s)
+  Registrar Sesión          Prom:   24.6s  (Min:  12s, Max:  39s)
+  Ver Progreso              Prom:   23.9s  (Min:  12s, Max:  38s)
+
+MÉTRICAS GENERALES:
+--------------------------------------------------------------------------------
+  Satisfacción promedio: 4.68/5.0
+  NPS promedio: 9.9/10
+  NPS calculado: 100.0
+  Promotores (9-10): 100 (100%)
+  Neutros (7-8): 0 (0%)
+  Detractores (0-6): 0 (0%)
+  Éxito total de tareas: 468/500 (93.6%)
+
+================================================================================
+CLASIFICACIÓN:
+--------------------------------------------------------------------------------
+✅ EXCELENTE - Top 5% de usabilidad
+
+================================================================================

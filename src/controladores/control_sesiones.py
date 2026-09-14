@@ -1,6 +1,6 @@
 ﻿from datetime import date
 from decimal import Decimal
-from typing import Optional, Union
+from typing import Optional, Union, Any
 
 from src.controladores.control_base import ControlBase
 from src.modelos.enums import Intensidad
@@ -31,7 +31,8 @@ class ControlSesiones(ControlBase):
 
     def registrar_sesion(
         self,
-        id_cliente: int,
+        cliente: Any,
+        rutina: Any,
         duracion_real: int,
         intensidad_real: Union[Intensidad, str],
         calorias_quemadas: float,
@@ -42,7 +43,8 @@ class ControlSesiones(ControlBase):
         Registra una nueva sesión de entrenamiento para un cliente.
 
         Args:
-            id_cliente (int): ID del cliente.
+            cliente: Objeto Cliente o ID del cliente.
+            rutina: Objeto Rutina o ID de rutina.
             duracion_real (int): Duración real en minutos.
             intensidad_real (Intensidad o str): Intensidad percibida.
             calorias_quemadas (float): Calorías quemadas en la sesión.
@@ -52,9 +54,27 @@ class ControlSesiones(ControlBase):
         Returns:
             SesionEntrenamiento: Sesión guardada con ID asignado.
         """
+        # Extraer ID del cliente
+        if hasattr(cliente, 'id_usuario'):
+            id_cliente = cliente.id_usuario
+        elif isinstance(cliente, int):
+            id_cliente = cliente
+        else:
+            raise ValueError("El cliente debe ser un objeto Cliente o un entero.")
+        
+        # Extraer ID de rutina (si es objeto o entero)
+        if hasattr(rutina, 'id_rutina'):
+            id_rutina = rutina.id_rutina
+        elif isinstance(rutina, int):
+            id_rutina = rutina
+        else:
+            raise ValueError("La rutina debe ser un objeto Rutina o un entero.")
+        
         #Validaciones
         if not isinstance(id_cliente, int) or id_cliente <= 0:
             raise ValueError("El ID del cliente debe ser un entero positivo.")
+        if not isinstance(id_rutina, int) or id_rutina <= 0:
+            raise ValueError("El ID de rutina debe ser un entero positivo.")
         if not isinstance(duracion_real, int) or duracion_real <= 0:
             raise ValueError("La duración real debe ser un entero positivo.")
         if not isinstance(calorias_quemadas, (int, float, Decimal)) or calorias_quemadas < 0:

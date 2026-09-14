@@ -15,7 +15,7 @@ class ControlBase:
         """
         self.ruta_log = Path(ruta_log)
 
-    def _registrar_log(self, usuario: Optional[str], accion: str) -> None:
+    def _registrar_log(self, usuario: Optional[str], accion: str, detalle: Optional[str] = None) -> None:
         """
         Registra una actvidad en el archivo de auditoria.
 
@@ -25,6 +25,7 @@ class ControlBase:
         Args:
             usuario (str, optional): Nombre o identificador del usuario.
             accion (str): Descripcion de la accion realizada.
+            detalle (str, optional): Detalle adicional de la accion.
         """
         try:
             #Crear el directorio si no existe.
@@ -36,8 +37,14 @@ class ControlBase:
             #Usuario por defecto si es None.
             usuario_str = "SISTEMA" if usuario is None else str(usuario)
 
-            #Linea con formato FECHA, USUARIO, ACTIVIDAD.
-            linea = f"{fecha_actual}, {usuario_str}, {accion}\n"
+            #Construir línea base
+            linea = f"{fecha_actual}, {usuario_str}, {accion}"
+            
+            #Agregar detalle si existe
+            if detalle is not None:
+                linea += f", {detalle}"
+            
+            linea += "\n"
 
             #Escribir en el archivo (modo append)
             with open(self.ruta_log, mode="a", encoding="utf-8") as archivo:
@@ -51,6 +58,6 @@ class ControlBase:
             )
 
     # Alias para compatibilidad
-    def _registrar_auditoria(self, usuario: Optional[str], accion: str) -> None:
+    def _registrar_auditoria(self, usuario: Optional[str], accion: str, detalle: Optional[str] = None) -> None:
         #Alias de _registrar_log para mantener compatibilidad.
-        self._registrar_log(usuario, accion)
+        self._registrar_log(usuario, accion, detalle)

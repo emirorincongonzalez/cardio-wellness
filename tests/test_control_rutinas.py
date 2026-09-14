@@ -31,7 +31,7 @@ def test_crear_rutina_exitoso_y_auditoria(controlador, mock_rutina_dao):
     rutina = controlador.crear_rutina(
         nombre="Fuerza Básica",
         descripcion="Rutina para principiantes",
-        nivel_dificultad="Principiante",
+        nivel_dificultad="BASICO",
         duracion_estimada=45,
         creado_por=10,
     )
@@ -95,7 +95,7 @@ def test_actualizar_rutina(controlador, mock_rutina_dao):
         id_rutina=1,
         nombre="Nombre nuevo",
         descripcion="Desc",
-        nivel_dificultad="Media",
+        nivel_dificultad="INTERMEDIO",
         duracion_estimada=40,
     )
     mock_rutina_dao.actualizar.return_value = rutina
@@ -111,25 +111,25 @@ def test_actualizar_rutina(controlador, mock_rutina_dao):
 def test_eliminar_rutina_y_auditoria(controlador, mock_rutina_dao):
     mock_rutina_dao.eliminar_por_id.return_value = True
 
-    res = controlador.eliminar_rutina(4, usuario_accion="admin_gym")
+    res = controlador.eliminar_rutina(4, usuario_accion=1)
 
     assert res is True
     mock_rutina_dao.eliminar_por_id.assert_called_once_with(4)
 
     contenido_log = controlador.ruta_log.read_text(encoding="utf-8")
-    assert "admin_gym, ELIMINACION_RUTINA" in contenido_log
+    assert "1, ELIMINACION_RUTINA" in contenido_log
 
 
 def test_agregar_y_eliminar_ejercicio_auditoria(controlador, mock_rutina_dao):
     mock_rutina_dao.agregar_ejercicio.return_value = True
     mock_rutina_dao.eliminar_ejercicio.return_value = True
 
-    controlador.agregar_ejercicio_a_rutina(1, 10, usuario_accion="profesor1")
-    controlador.eliminar_ejercicio_de_rutina(1, 10, usuario_accion="profesor1")
+    controlador.agregar_ejercicio_a_rutina(1, 10, usuario_accion=1)
+    controlador.eliminar_ejercicio_de_rutina(1, 10, usuario_accion=1)
 
     contenido_log = controlador.ruta_log.read_text(encoding="utf-8")
-    assert "profesor1, AGREGAR_EJERCICIO_A_RUTINA" in contenido_log
-    assert "profesor1, ELIMINAR_EJERCICIO_DE_RUTINA" in contenido_log
+    assert "1, AGREGAR_EJERCICIO_A_RUTINA" in contenido_log
+    assert "1, ELIMINAR_EJERCICIO_DE_RUTINA" in contenido_log
 
 
 def test_asignar_rutina_con_rutina_activa_previa(controlador, mock_asignacion_dao):
@@ -151,6 +151,7 @@ def test_asignar_rutina_con_rutina_activa_previa(controlador, mock_asignacion_da
         id_cliente=3,
         id_rutina=9,
         asignado_por=1,
+        observaciones="",
     )
     assert res == {"id_asignacion": 56, "activa": True}
 
@@ -172,5 +173,6 @@ def test_asignar_rutina_sin_rutina_activa_previa_y_usando_ids(
         id_cliente=7,
         id_rutina=12,
         asignado_por=2,
+        observaciones="",
     )
     assert res == {"id_asignacion": 70, "activa": True}

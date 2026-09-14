@@ -2,19 +2,24 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
+
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+
 from src.modelos.progreso_mensual import ProgresoMensual
+
 
 
 class GeneradorReportesPDF:
 
+
     def __init__(self, directorio_salida: str = "reportes"):
         self.directorio_salida = Path(directorio_salida)
         self.directorio_salida.mkdir(parents=True, exist_ok=True)
+
 
     def generar_reporte_progreso_cliente(
         self,
@@ -29,6 +34,7 @@ class GeneradorReportesPDF:
         objetivo_cliente = getattr(cliente, "objetivo", "No especificado")
         peso_cliente = getattr(cliente, "peso", "N/A")
 
+
         if ruta_archivo is None:
             fecha_str = datetime.now().strftime("%Y%m%d_%H%M%S")
             nombre_pdf = f"reporte_progreso_cliente_{id_cliente}_{fecha_str}.pdf"
@@ -37,9 +43,11 @@ class GeneradorReportesPDF:
             ruta_destino = Path(ruta_archivo)
             ruta_destino.parent.mkdir(parents=True, exist_ok=True)
 
+
         doc = SimpleDocTemplate(str(ruta_destino), pagesize=letter)
         story = []
         styles = getSampleStyleSheet()
+
 
         # Título principal
         titulo_style = ParagraphStyle(
@@ -53,6 +61,7 @@ class GeneradorReportesPDF:
         story.append(Paragraph("<b>SISTEMA CARDIO-WELLNESS</b>", titulo_style))
         story.append(Paragraph("<b>Reporte de Progreso y Evaluación del Cliente</b>", styles["Normal"]))
         story.append(Spacer(1, 15))
+
 
         # Datos del cliente
         datos_cliente = [
@@ -78,10 +87,12 @@ class GeneradorReportesPDF:
         story.append(t_cliente)
         story.append(Spacer(1, 15))
 
+
         # Resumen de actividad física
         total_sesiones = resumen_actividad.get("total_sesiones", 0)
         total_minutos = resumen_actividad.get("total_minutos", 0)
         total_calorias = resumen_actividad.get("total_calorias", 0)
+
 
         datos_resumen = [
             ["Total Sesiones Realizadas", "Minutos Totales", "Calorías Quemadas (Estimadas)"],
@@ -104,21 +115,44 @@ class GeneradorReportesPDF:
         story.append(t_resumen)
         story.append(Spacer(1, 15))
 
+
         # Historial mensual
         tabla_historial = [
             ["Mes", "Peso (kg)", "Sesiones Completadas", "Sesiones Planificadas", "Cumplimiento (%)"]
         ]
 
+
         if historial_progreso:
             for progreso in historial_progreso:
-                mes = progreso.mes.strftime("%B %Y")
-                peso = f"{progreso.peso:.1f}"
-                completadas = progreso.sesiones_completadas
-                planificadas = progreso.sesiones_planificadas
-                cumplimiento = f"{progreso.porcentaje_cumplimiento:.1f}%"
+                # Manejar tanto dicts como objetos ProgresoMensual
+                if isinstance(progreso, dict):
+                    mes = progreso.get('mes', '')
+                    if hasattr(mes, 'strftime'):
+                        mes = mes.strftime("%B %Y")
+                    peso = f"{progreso.get('peso_registrado', 0):.1f}"
+                    completadas = progreso.get('sesiones_completadas', 0)
+                    planificadas = progreso.get('sesiones_planificadas', 0)
+                elif isinstance(progreso, ProgresoMensual):
+                    mes = progreso.mes.strftime("%B %Y")
+                    peso = f"{progreso.peso:.1f}"
+                    completadas = progreso.sesiones_completadas
+                    planificadas = progreso.sesiones_planificadas
+                else:
+                    mes = "N/A"
+                    peso = "-"
+                    completadas = 0
+                    planificadas = 0
+                
+                # Calcular cumplimiento
+                if planificadas > 0:
+                    cumplimiento = f"{(completadas / planificadas * 100):.1f}%"
+                else:
+                    cumplimiento = "0.0%"
+                
                 tabla_historial.append([mes, peso, str(completadas), str(planificadas), cumplimiento])
         else:
             tabla_historial.append(["Sin registros", "-", "-", "-", "-"])
+
 
         t_hist = Table(tabla_historial, colWidths=[120, 80, 100, 100, 100])
         t_hist.setStyle(
@@ -136,6 +170,7 @@ class GeneradorReportesPDF:
             )
         )
         story.append(t_hist)
+
 
         doc.build(story)
         return str(ruta_destino)

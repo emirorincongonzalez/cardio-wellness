@@ -3,10 +3,12 @@ from typing import Optional
 
 from psycopg2 import IntegrityError
 
+
 from src.modelos.administrador import Administrador
 from src.modelos.cliente import Cliente
 from src.persistencia.conexion_bd import ConexionBD
 from src.servicios.gestor_seguridad import GestorSeguridad
+
 
 
 
@@ -40,8 +42,10 @@ class UsuarioDAO:
         if not isinstance(contrasenia_plana, str) or not contrasenia_plana:
             raise ValueError("La contraseña debe ser una cadena no vacía.")
 
+
         # Generar hash de la contraseña
         contrasenia_hash = GestorSeguridad.generar_hash(contrasenia_plana)
+
 
         # Insertar en usuarios
         sql_usuario = """
@@ -74,8 +78,10 @@ class UsuarioDAO:
             usuario.id_usuario = resultado[0]['id_usuario']
             usuario.fecha_registro = resultado[0]['fecha_registro']
 
+
             # Hacer commit manual después de la inserción
             self._conexion._conexion.commit()
+
 
             # Si es cliente, insertar en clientes
             if isinstance(usuario, Cliente):
@@ -110,9 +116,11 @@ class UsuarioDAO:
                 raise ValueError("El correo ya está registrado.") from e
             raise RuntimeError(f"Error de integridad al guardar el usuario: {e}") from e
 
+
         except Exception as e:
             self._conexion._conexion.rollback()
             raise RuntimeError(f"Error inesperado al guardar el usuario: {e}") from e
+
 
     def buscar_por_correo(self, correo: str):
         """
@@ -179,6 +187,7 @@ class UsuarioDAO:
             )
         else:
             raise ValueError(f"Tipo de usuario desconocido: {tipo_usuario}")
+
 
     def iniciar_sesion(self, correo: str, contrasenia: str):
         """
@@ -247,16 +256,20 @@ class UsuarioDAO:
         try:
             actualizado = self._conexion.ejecutar_actualizacion(sql, parametros)
             if not actualizado:
-                raise ValueError("No se encontró usuario con el ID proporcionado.")
+                raise ValueError("No se encontró el usuario.")
             return usuario
         except IntegrityError as e:
             self._conexion._conexion.rollback()
             if e.pgcode == "23505":
                 raise ValueError("El correo ya está registrado.") from e
-            raise RuntimeError(f"Error de integridad al actualizar el usuario: {e}") from e
+            raise ValueError(f"Error de integridad al actualizar el usuario: {e}") from e
+        except ValueError:
+            # Dejar pasar los ValueError sin envolver
+            raise
         except Exception as e:
             self._conexion._conexion.rollback()
-            raise RuntimeError(f"Error inesperado al actualizar el usuario: {e}") from e
+            raise ValueError(f"Error al actualizar el usuario: {e}") from e
+
 
     def eliminar_por_id(self, id_usuario: int) -> bool:
         """

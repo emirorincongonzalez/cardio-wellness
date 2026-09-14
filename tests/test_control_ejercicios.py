@@ -24,14 +24,14 @@ def test_crear_ejercicio_exitoso_y_auditoria(controlador, mock_ejercicio_dao):
         descripcion="Trote continuo ritmo medio",
         duracion_minutos=30,
         calorias_estimadas=300,
-        usuario_creador="admin_cardio",
+        usuario_creador=1,
     )
 
     assert isinstance(ejercicio, EjercicioCardio)
     mock_ejercicio_dao.guardar.assert_called_once()
 
     contenido_log = controlador.ruta_log.read_text(encoding="utf-8")
-    assert "admin_cardio, CREACION_EJERCICIO" in contenido_log
+    assert "1, CREACION_EJERCICIO" in contenido_log
 
 
 @pytest.mark.parametrize(
@@ -97,10 +97,10 @@ def test_actualizar_ejercicio(controlador, mock_ejercicio_dao):
 def test_eliminar_ejercicio_y_auditoria(controlador, mock_ejercicio_dao):
     mock_ejercicio_dao.eliminar_por_id.return_value = True
 
-    res = controlador.eliminar_ejercicio(8, usuario_accion="coach1")
+    res = controlador.eliminar_ejercicio(8, usuario_accion=1)
 
     assert res is True
     mock_ejercicio_dao.eliminar_por_id.assert_called_once_with(8)
 
     contenido_log = controlador.ruta_log.read_text(encoding="utf-8")
-    assert "coach1, ELIMINACION_EJERCICIO" in contenido_log
+    assert "1, ELIMINACION_EJERCICIO" in contenido_log

@@ -44,7 +44,7 @@ class SistemaWellness(ControlBase):
     def _registrar_log(self, usuario: str, accion: str, detalle: Optional[str] = None) -> None:
         """Sobrescribe el método de ControlBase para incluir detalle opcional."""
         if detalle:
-            super()._registrar_log(usuario, f"{accion}: {detalle}")
+            super()._registrar_log(usuario, accion, detalle)
         else:
             super()._registrar_log(usuario, accion)
 
@@ -64,7 +64,7 @@ class SistemaWellness(ControlBase):
         rutinas = self.control_rutinas.listar()
         if not rutinas:
             self._registrar_log(
-                getattr(cliente, "id_usuario", "CLIENTE"),
+                str(getattr(cliente, "id_usuario", "CLIENTE")),
                 "SUGERENCIA_RUTINA",
                 "SIN_RUTINAS"
             )
@@ -73,37 +73,55 @@ class SistemaWellness(ControlBase):
         # Coincidencia por palabra clave del objetivo
         if any(w in objetivo_norm for w in ("PESO", "ADELGAZAR", "QUEMA", "GRASA", "CARDIO")):
             for rutina in rutinas:
-                if not isinstance(rutina, Rutina):
-                    continue
-                nom = _normalizar_texto(rutina.nombre)
-                desc = _normalizar_texto(rutina.descripcion or "")
-                if "QUEMA" in nom or "CARDIO" in nom or "GRASA" in desc:
-                    self._registrar_log(
-                        getattr(cliente, "id_usuario", "CLIENTE"),
-                        "SUGERENCIA_RUTINA",
-                        f"CARDIO_QUEMA_GRASA - {rutina.nombre}"
-                    )
-                    return rutina
+                # Manejar tanto dicts como objetos
+                if isinstance(rutina, dict):
+                    nom = _normalizar_texto(rutina.get("nombre", ""))
+                    desc = _normalizar_texto(rutina.get("descripcion", ""))
+                    if "QUEMA" in nom or "CARDIO" in nom or "GRASA" in desc:
+                        self._registrar_log(
+                            str(getattr(cliente, "id_usuario", "CLIENTE")),
+                            "SUGERENCIA_RUTINA",
+                            "CARDIO_QUEMA_GRASA"
+                        )
+                        return rutina
+                elif isinstance(rutina, Rutina):
+                    nom = _normalizar_texto(rutina.nombre)
+                    desc = _normalizar_texto(rutina.descripcion or "")
+                    if "QUEMA" in nom or "CARDIO" in nom or "GRASA" in desc:
+                        self._registrar_log(
+                            str(getattr(cliente, "id_usuario", "CLIENTE")),
+                            "SUGERENCIA_RUTINA",
+                            "CARDIO_QUEMA_GRASA"
+                        )
+                        return rutina
 
         if any(w in objetivo_norm for w in ("MUSCULO", "HIPERTROFIA", "FUERZA", "VOLUMEN")):
             for rutina in rutinas:
-                if not isinstance(rutina, Rutina):
-                    continue
-                nom = _normalizar_texto(rutina.nombre)
-                if "FUERZA" in nom or "HIPERTROFIA" in nom:
-                    self._registrar_log(
-                        getattr(cliente, "id_usuario", "CLIENTE"),
-                        "SUGERENCIA_RUTINA",
-                        f"FUERZA_HIPERTROFIA - {rutina.nombre}"
-                    )
-                    return rutina
+                if isinstance(rutina, dict):
+                    nom = _normalizar_texto(rutina.get("nombre", ""))
+                    if "FUERZA" in nom or "HIPERTROFIA" in nom:
+                        self._registrar_log(
+                            str(getattr(cliente, "id_usuario", "CLIENTE")),
+                            "SUGERENCIA_RUTINA",
+                            "FUERZA_HIPERTROFIA"
+                        )
+                        return rutina
+                elif isinstance(rutina, Rutina):
+                    nom = _normalizar_texto(rutina.nombre)
+                    if "FUERZA" in nom or "HIPERTROFIA" in nom:
+                        self._registrar_log(
+                            str(getattr(cliente, "id_usuario", "CLIENTE")),
+                            "SUGERENCIA_RUTINA",
+                            "FUERZA_HIPERTROFIA"
+                        )
+                        return rutina
 
         # Fallback a la primera rutina
         rutina_default = rutinas[0]
         self._registrar_log(
-            getattr(cliente, "id_usuario", "CLIENTE"),
+            str(getattr(cliente, "id_usuario", "CLIENTE")),
             "SUGERENCIA_RUTINA",
-            f"DEFAULT - {rutina_default.nombre}"
+            "DEFAULT"
         )
         return rutina_default
 
@@ -127,20 +145,29 @@ class SistemaWellness(ControlBase):
             return Decimal("0.0")
 
         # Los objetos ya vienen ordenados por fecha descendente (más reciente primero)
-        reg_actual = historial[0]   # ProgresoMensual
-        reg_anterior = historial[1] # ProgresoMensual
+        reg_actual = historial[0]
+        reg_anterior = historial[1]
 
-        if not isinstance(reg_actual, ProgresoMensual) or not isinstance(reg_anterior, ProgresoMensual):
-            raise TypeError("El historial debe contener objetos ProgresoMensual.")
+        # Manejar tanto dicts como objetos ProgresoMensual
+        if isinstance(reg_actual, dict):
+            peso_actual = Decimal(str(reg_actual.get("peso_registrado", 0)))
+        elif isinstance(reg_actual, ProgresoMensual):
+            peso_actual = Decimal(str(reg_actual.peso))
+        else:
+            raise TypeError("El historial debe contener objetos ProgresoMensual o dicts.")
 
-        peso_actual = Decimal(str(reg_actual.peso))
-        peso_anterior = Decimal(str(reg_anterior.peso))
+        if isinstance(reg_anterior, dict):
+            peso_anterior = Decimal(str(reg_anterior.get("peso_registrado", 0)))
+        elif isinstance(reg_anterior, ProgresoMensual):
+            peso_anterior = Decimal(str(reg_anterior.peso))
+        else:
+            raise TypeError("El historial debe contener objetos ProgresoMensual o dicts.")
 
         diferencia = peso_actual - peso_anterior
         self._registrar_log(
             f"CLIENTE_{id_cliente}",
             "CALCULO_DIFERENCIA_PESO",
-            f"DIF: {diferencia:.2f} kg"
+            f"DIF: {diferencia:.1f}"
         )
         return diferencia
 

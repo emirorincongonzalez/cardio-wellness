@@ -41,7 +41,7 @@ def test_calcular_resumen_cliente_sin_sesiones(control):
     assert resultado["id_cliente"] == 1
     assert resultado["total_sesiones"] == 0
     assert resultado["total_minutos"] == 0
-    assert resultado["total_calorias"] == Decimal("0.0")
+    assert resultado["total_calorias"] == Decimal("0.00")
 
 
 def test_calcular_resumen_cliente_con_sesiones(control):
@@ -154,7 +154,7 @@ def test_generar_progreso_mensual_sin_dao(control):
     cliente.id_usuario = 5
     
     with pytest.raises(RuntimeError, match="El DAO de progreso mensual no está disponible"):
-        control.generar_progreso_mensual(cliente)
+        control.generar_progreso_mensual(cliente, mes=9, anio=2026, peso_actual=70.0)
 
 
 def test_generar_progreso_mensual_sin_peso_cliente(control):
@@ -245,7 +245,6 @@ def test_obtener_impacto_rutina_alias(control):
 
 
 # Tests para funciones helper
-
 
 def test_extraer_id_desde_entero():
     """Prueba _extraer_id con entero."""

@@ -21,7 +21,7 @@ def datos_prueba():
     bd.abrir_conexion()
 
     correo = f"asignacion.{uuid4().hex}@example.com"
-    contrasenia_hash = GestorSeguridad.generar_hash("Clave123")
+    contrasenia_hash = GestorSeguridad.generar_hash("Clave123!")
 
     with bd._conexion.cursor() as cursor:
         cursor.execute(

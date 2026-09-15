@@ -1,5 +1,51 @@
+# Python
 .env
 .venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs (IMPORTANTE: mantener logs pero no el contenido)
+logs/*.txt
+!logs/.gitkeep
+
+# Database (SQLite - no subir BDs de prueba)
+database/*.db
+*.db-journal
+
+# Coverage reports (no subir reportes generados)
+htmlcov/
+.coverage
+.coverage.*
+
+# Reports generados (no subir PDFs de prueba)
+reportes/*.pdf
+*.pdf
+reporte_*.txt
+
+# Environment variables
+.env.local
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Testing
+.tox/

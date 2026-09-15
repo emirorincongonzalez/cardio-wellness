@@ -13,7 +13,7 @@ def crear_cliente(correo):
         nombre="Laura",
         apellido="Gomez",
         correo_electronico=correo,
-        contrasenia_hash=GestorSeguridad.generar_hash("ClaveInicial123"),
+        contrasenia_hash=GestorSeguridad.generar_hash("ClaveInicial123!"),
         edad=32,
         peso=68.5,
         altura=1.65,
@@ -52,7 +52,7 @@ def test_cliente_dao_buscar_por_correo():
         assert cliente_encontrado.apellido == "Gomez"
         assert cliente_encontrado.contrasenia_hash is not None
         assert cliente_encontrado.contrasenia_hash != (
-            "ClaveInicial123"
+            "ClaveInicial123!"
         )
 
 
@@ -105,12 +105,12 @@ def test_cliente_dao_recupera_hash():
         assert cliente_recuperado is not None
         assert cliente_recuperado.contrasenia_hash is not None
         assert cliente_recuperado.contrasenia_hash != (
-            "ClaveInicial123"
+            "ClaveInicial123!"
         )
 
 
         assert GestorSeguridad.verificar_contrasenia(
-            "ClaveInicial123",
+            "ClaveInicial123!",
             cliente_recuperado.contrasenia_hash,
         ) is True
 
@@ -145,8 +145,8 @@ def test_cliente_cambiar_contrasenia_en_memoria():
 
         cambio_realizado = (
             cliente_recuperado.cambiar_contrasenia(
-                "ClaveInicial123",
-                "ClaveNueva456",
+                "ClaveInicial123!",
+                "ClaveNueva456!",
             )
         )
 
@@ -156,13 +156,13 @@ def test_cliente_cambiar_contrasenia_en_memoria():
 
 
         assert GestorSeguridad.verificar_contrasenia(
-            "ClaveNueva456",
+            "ClaveNueva456!",
             cliente_recuperado.contrasenia_hash,
         ) is True
 
 
         assert GestorSeguridad.verificar_contrasenia(
-            "ClaveInicial123",
+            "ClaveInicial123!",
             cliente_recuperado.contrasenia_hash,
         ) is False
 
@@ -198,7 +198,7 @@ def test_cliente_cambiar_contrasenia_rechaza_actual_incorrecta():
         cambio_realizado = (
             cliente_recuperado.cambiar_contrasenia(
                 "ContraseniaIncorrecta",
-                "ClaveNueva456",
+                "ClaveNueva456!",
             )
         )
 
@@ -371,8 +371,8 @@ def test_cliente_dao_actualizar_contrasenia():
 
         resultado = dao.actualizar_contrasenia(
             cliente_guardado.id_usuario,
-            "ClaveInicial123",
-            "ClaveActualizada789",
+            "ClaveInicial123!",
+            "ClaveActualizada789!",
         )
 
 
@@ -381,13 +381,13 @@ def test_cliente_dao_actualizar_contrasenia():
 
         sesion_correcta = usuario_dao.iniciar_sesion(
             correo,
-            "ClaveActualizada789",
+            "ClaveActualizada789!",
         )
 
 
         sesion_incorrecta = usuario_dao.iniciar_sesion(
             correo,
-            "ClaveInicial123",
+            "ClaveInicial123!",
         )
 
 
@@ -425,7 +425,7 @@ def test_cliente_dao_rechaza_contrasenia_actual_incorrecta():
 
         sesion_original = usuario_dao.iniciar_sesion(
             correo,
-            "ClaveInicial123",
+            "ClaveInicial123!",
         )
 
 
@@ -462,7 +462,7 @@ def test_cliente_dao_rechaza_nueva_contrasenia_vacia():
         ):
             dao.actualizar_contrasenia(
                 cliente_guardado.id_usuario,
-                "ClaveInicial123",
+                "ClaveInicial123!",
                 "",
             )
 

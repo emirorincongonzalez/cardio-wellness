@@ -99,7 +99,7 @@ def test_registrar_administrador_exitoso(controlador, mock_usuario_dao):
         nombre="Test",
         apellido="Admin",
         correo_electronico=admin_mock.correo_electronico,
-        contrasenia_plana="Clave123",
+        contrasenia_plana="Clave123!",
         edad=30,
     )
     
@@ -117,7 +117,7 @@ def test_registrar_administrador_nombre_vacio(controlador, mock_usuario_dao):
             nombre="",
             apellido="Admin",
             correo_electronico="test@example.com",
-            contrasenia_plana="Clave123",
+            contrasenia_plana="Clave123!",
             edad=30,
         )
 
@@ -131,7 +131,7 @@ def test_registrar_administrador_apellido_vacio(controlador, mock_usuario_dao):
             nombre="Test",
             apellido="",
             correo_electronico="test@example.com",
-            contrasenia_plana="Clave123",
+            contrasenia_plana="Clave123!",
             edad=30,
         )
 
@@ -145,6 +145,6 @@ def test_registrar_administrador_edad_invalida(controlador, mock_usuario_dao):
             nombre="Test",
             apellido="Admin",
             correo_electronico="test@example.com",
-            contrasenia_plana="Clave123",
+            contrasenia_plana="Clave123!",
             edad=0,
         )

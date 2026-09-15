@@ -3,10 +3,12 @@ Controlador para la gestión de rutinas de entrenamiento.
 """
 from typing import Optional, Union
 
+
 from src.modelos.rutina import Rutina, NivelRutina
 from src.persistencia.rutina_dao import RutinaDAO
 from src.persistencia.asignacion_rutina_dao import AsignacionRutinaDAO
 from src.controladores.control_base import ControlBase
+from src.utilidades.logger import log_creacion_rutina, log_sugerencia_rutina
 
 
 def _instanciar_rutina(
@@ -42,6 +44,7 @@ class ControlRutinas(ControlBase):
     Controlador para operaciones CRUD de rutinas.
     """
 
+
     def __init__(
         self,
         rutina_dao: RutinaDAO,
@@ -52,13 +55,16 @@ class ControlRutinas(ControlBase):
         self._rutina_dao = rutina_dao
         self._asignacion_dao = asignacion_dao
 
+
     @property
     def rutina_dao(self) -> RutinaDAO:
         return self._rutina_dao
 
+
     @property
     def asignacion_dao(self) -> AsignacionRutinaDAO:
         return self._asignacion_dao
+
 
     def crear_rutina(
         self,
@@ -81,7 +87,9 @@ class ControlRutinas(ControlBase):
         if not isinstance(creado_por, int) or creado_por <= 0:
             raise ValueError("El ID del creador debe ser un entero positivo")
 
+
         nivel = nivel_dificultad if isinstance(nivel_dificultad, NivelRutina) else NivelRutina(nivel_dificultad)
+
 
         rutina = Rutina(
             nombre=nombre.strip(),
@@ -92,9 +100,15 @@ class ControlRutinas(ControlBase):
             creado_por=creado_por,
         )
 
+
         rutina_guardada = self._rutina_dao.guardar(rutina)
+        
+        # LOG DOBLE: ControlBase + logger.py
         self._registrar_log(str(creado_por), f"CREACION_RUTINA ID: {rutina_guardada.id_rutina}")
+        log_creacion_rutina(creado_por, rutina_guardada.id_rutina)
+        
         return rutina_guardada
+
 
     def buscar_por_id(self, id_rutina: int) -> Optional[Rutina]:
         """Busca una rutina por su ID."""
@@ -102,30 +116,43 @@ class ControlRutinas(ControlBase):
             raise ValueError("El ID debe ser positivo")
         return self._rutina_dao.buscar_por_id(id_rutina)
 
+
     def obtener_por_id(self, id_rutina: int) -> Optional[Rutina]:
         """Alias de buscar_por_id."""
         return self.buscar_por_id(id_rutina)
+
 
     def listar(self) -> list:
         """Lista todas las rutinas."""
         return self._rutina_dao.listar()
 
+
     def listar_rutinas(self) -> list:
         """Alias de listar."""
         return self.listar()
+
 
     def actualizar_rutina(self, rutina: Rutina) -> Rutina:
         """Actualiza una rutina existente."""
         if not isinstance(rutina, Rutina):
             raise TypeError("Debe proporcionar una instancia de Rutina")
-        return self._rutina_dao.actualizar(rutina)
+        
+        rutina_actualizada = self._rutina_dao.actualizar(rutina)
+        
+        # LOG DOBLE: ControlBase + logger.py
+        self._registrar_log(str(rutina.creado_por), f"ACTUALIZACION_RUTINA ID: {rutina.id_rutina}")
+        
+        return rutina_actualizada
+
 
     def eliminar_rutina(self, id_rutina: int, usuario_accion: int) -> bool:
         """Elimina una rutina por ID."""
         resultado = self._rutina_dao.eliminar_por_id(id_rutina)
         if resultado:
+            # LOG DOBLE: ControlBase + logger.py
             self._registrar_log(str(usuario_accion), f"ELIMINACION_RUTINA ID: {id_rutina}")
         return resultado
+
 
     def agregar_ejercicio_a_rutina(
         self, id_rutina: int, id_ejercicio: int, orden: int = 1, usuario_accion: int = 1
@@ -133,8 +160,10 @@ class ControlRutinas(ControlBase):
         """Agrega un ejercicio a una rutina."""
         resultado = self._rutina_dao.agregar_ejercicio(id_rutina, id_ejercicio, orden)
         if resultado:
+            # LOG DOBLE: ControlBase + logger.py
             self._registrar_log(str(usuario_accion), f"AGREGAR_EJERCICIO_A_RUTINA ID: {id_rutina}")
         return resultado
+
 
     def eliminar_ejercicio_de_rutina(
         self, id_rutina: int, id_ejercicio: int, usuario_accion: int = 1
@@ -142,8 +171,10 @@ class ControlRutinas(ControlBase):
         """Elimina un ejercicio de una rutina."""
         resultado = self._rutina_dao.eliminar_ejercicio(id_rutina, id_ejercicio)
         if resultado:
+            # LOG DOBLE: ControlBase + logger.py
             self._registrar_log(str(usuario_accion), f"ELIMINAR_EJERCICIO_DE_RUTINA ID: {id_rutina}")
         return resultado
+
 
     def asignar_rutina(
         self,
@@ -158,12 +189,15 @@ class ControlRutinas(ControlBase):
         id_cliente = cliente.id_usuario if hasattr(cliente, 'id_usuario') else int(cliente)
         id_rutina = rutina.id_rutina if hasattr(rutina, 'id_rutina') else int(rutina)
 
+
         if id_cliente <= 0 or id_rutina <= 0:
             raise ValueError("Los IDs deben ser positivos")
+
 
         asignacion_activa = self._asignacion_dao.obtener_activa_por_cliente(id_cliente)
         if asignacion_activa:
             self._asignacion_dao.finalizar_asignacion(asignacion_activa.id_asignacion)
+
 
         resultado = self._asignacion_dao.asignar(
             id_cliente=id_cliente,
@@ -172,5 +206,32 @@ class ControlRutinas(ControlBase):
             observaciones=observaciones,
         )
 
+
+        # LOG DOBLE: ControlBase + logger.py
         self._registrar_log(str(asignado_por), f"ASIGNACION_RUTINA Cliente: {id_cliente}, Rutina: {id_rutina}")
+        
         return resultado
+
+
+    def sugerir_rutina(self, id_cliente: int, tipo_sugerencia: str = "DEFAULT") -> Optional[Rutina]:
+        """
+        Sugiere una rutina para un cliente.
+        
+        Args:
+            id_cliente (int): ID del cliente.
+            tipo_sugerencia (str): Tipo de sugerencia (DEFAULT, SIN_RUTINAS, PERSONALIZADA).
+            
+        Returns:
+            Rutina: Rutina sugerida o None.
+        """
+        if id_cliente <= 0:
+            raise ValueError("El ID del cliente debe ser positivo")
+        
+        # Lógica de sugerencia (implementación según tu código existente)
+        rutina_sugerida = self._rutina_dao.sugerir_rutina(id_cliente, tipo_sugerencia)
+        
+        # LOG DOBLE: ControlBase + logger.py
+        self._registrar_log(f"CLIENTE_{id_cliente}", "SUGERENCIA_RUTINA", tipo_sugerencia)
+        log_sugerencia_rutina(f"CLIENTE_{id_cliente}", tipo_sugerencia)
+        
+        return rutina_sugerida

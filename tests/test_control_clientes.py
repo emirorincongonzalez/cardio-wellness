@@ -118,3 +118,159 @@ def test_eliminar_cliente_y_auditoria(controlador, mock_cliente_dao):
     contenido_log = controlador.ruta_log.read_text(encoding="utf-8")
     assert "ID_5" in contenido_log
     assert "ELIMINACION_CLIENTE" in contenido_log
+
+    # ============================================================================
+# TESTS ADICIONALES PARA COBERTURA COMPLETA
+# ============================================================================
+
+def test_buscar_por_id_con_id_invalido():
+    """Testea buscar_por_id con ID inválido."""
+    from src.controladores.control_clientes import ControlClientes
+    
+    control = ControlClientes()
+    
+    with pytest.raises(ValueError, match="id de usuario"):
+        control.buscar_por_id(-1)
+    
+    with pytest.raises(ValueError, match="id de usuario"):
+        control.buscar_por_id(0)
+    
+    with pytest.raises(ValueError, match="id de usuario"):
+        control.buscar_por_id(True)
+
+
+def test_buscar_por_correo_con_correo_invalido():
+    """Testea buscar_por_correo con correo inválido."""
+    from src.controladores.control_clientes import ControlClientes
+    
+    control = ControlClientes()
+    
+    with pytest.raises(ValueError, match="correo"):
+        control.buscar_por_correo("")
+    
+    with pytest.raises(ValueError, match="correo"):
+        control.buscar_por_correo("   ")
+
+
+def test_listar_clientes():
+    """Testea listar() cuando retorna lista vacía."""
+    from src.controladores.control_clientes import ControlClientes
+    from unittest.mock import MagicMock
+    
+    mock_dao = MagicMock()
+    mock_dao.listar.return_value = []
+    
+    control = ControlClientes(cliente_dao=mock_dao)
+    resultado = control.listar()
+    
+    assert resultado == []
+    assert mock_dao.listar.called
+
+
+def test_actualizar_cliente_con_tipo_invalido():
+    """Testea actualizar_cliente con objeto que no es Cliente."""
+    from src.controladores.control_clientes import ControlClientes
+    
+    control = ControlClientes()
+    
+    with pytest.raises(TypeError, match="Cliente"):
+        control.actualizar_cliente("no es un cliente")
+    
+    with pytest.raises(TypeError, match="Cliente"):
+        control.actualizar_cliente(123)
+    
+    with pytest.raises(TypeError, match="Cliente"):
+        control.actualizar_cliente(None)
+
+
+def test_cambiar_contrasenia_con_id_invalido():
+    """Testea cambiar_contrasenia con ID inválido."""
+    from src.controladores.control_clientes import ControlClientes
+    
+    control = ControlClientes()
+    
+    with pytest.raises(ValueError, match="id de usuario"):
+        control.cambiar_contrasenia(-1, "Clave123!", "NuevaClave123!")
+    
+    with pytest.raises(ValueError, match="id de usuario"):
+        control.cambiar_contrasenia(0, "Clave123!", "NuevaClave123!")
+    
+    with pytest.raises(ValueError, match="id de usuario"):
+        control.cambiar_contrasenia(True, "Clave123!", "NuevaClave123!")
+
+
+def test_cambiar_contrasenia_con_nueva_contrasenia_vacia():
+    """Testea cambiar_contrasenia con nueva contraseña vacía."""
+    from src.controladores.control_clientes import ControlClientes
+    
+    control = ControlClientes()
+    
+    with pytest.raises(ValueError, match="contraseña"):
+        control.cambiar_contrasenia(1, "Clave123!", "")
+    
+    with pytest.raises(ValueError, match="contraseña"):
+        control.cambiar_contrasenia(1, "Clave123!", None)
+
+
+def test_eliminar_cliente_con_id_invalido():
+    """Testea eliminar_cliente con ID inválido."""
+    from src.controladores.control_clientes import ControlClientes
+    
+    control = ControlClientes()
+    
+    with pytest.raises(ValueError, match="id de usuario"):
+        control.eliminar_cliente(-1)
+    
+    with pytest.raises(ValueError, match="id de usuario"):
+        control.eliminar_cliente(0)
+    
+    with pytest.raises(ValueError, match="id de usuario"):
+        control.eliminar_cliente(True)
+
+
+def test_consultar_progreso_con_id_invalido():
+    """Testea consultar_progreso con ID inválido."""
+    from src.controladores.control_clientes import ControlClientes
+    
+    control = ControlClientes()
+    
+    with pytest.raises(ValueError, match="id de cliente"):
+        control.consultar_progreso(-1)
+    
+    with pytest.raises(ValueError, match="id de cliente"):
+        control.consultar_progreso(0)
+    
+    with pytest.raises(ValueError, match="id de cliente"):
+        control.consultar_progreso(True)
+
+
+def test_generar_progreso_mensual_con_id_invalido():
+    """Testea generar_progreso_mensual con ID inválido."""
+    from src.controladores.control_clientes import ControlClientes
+    
+    control = ControlClientes()
+    
+    with pytest.raises(ValueError, match="id de cliente"):
+        control.generar_progreso_mensual(-1)
+    
+    with pytest.raises(ValueError, match="id de cliente"):
+        control.generar_progreso_mensual(0)
+    
+    with pytest.raises(ValueError, match="id de cliente"):
+        control.generar_progreso_mensual(True)
+
+
+def test_calcular_diferencia_peso_con_id_invalido():
+    """Testea calcular_diferencia_peso con ID inválido."""
+    from src.controladores.control_clientes import ControlClientes
+    
+    control = ControlClientes()
+    
+    with pytest.raises(ValueError, match="id de cliente"):
+        control.calcular_diferencia_peso(-1)
+    
+    with pytest.raises(ValueError, match="id de cliente"):
+        control.calcular_diferencia_peso(0)
+    
+    with pytest.raises(ValueError, match="id de cliente"):
+        control.calcular_diferencia_peso(True)

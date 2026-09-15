@@ -5,12 +5,15 @@ from typing import Optional, List, Dict, Any, Union
 from decimal import Decimal
 from datetime import date
 
+
 from src.modelos.progreso_mensual import ProgresoMensual
 from src.modelos.rutina import Rutina
 from src.persistencia.progreso_mensual_dao import ProgresoMensualDAO
 from src.persistencia.sesion_entrenamiento_dao import SesionEntrenamientoDAO
 from src.controladores.control_base import ControlBase
+from src.utilidades.logger import log_consulta_progreso, log_generar_progreso, log_consulta_impacto
 from unittest.mock import Mock
+
 
 
 def _obtener_progreso_dao_default() -> Optional[ProgresoMensualDAO]:
@@ -23,6 +26,7 @@ def _obtener_progreso_dao_default() -> Optional[ProgresoMensualDAO]:
         return None
 
 
+
 def _obtener_sesion_dao_default() -> Optional[SesionEntrenamientoDAO]:
     """Obtiene el DAO de sesiones por defecto."""
     try:
@@ -33,6 +37,7 @@ def _obtener_sesion_dao_default() -> Optional[SesionEntrenamientoDAO]:
         return None
 
 
+
 def _obtener_clase_progreso():
     """Obtiene la clase ProgresoMensual."""
     try:
@@ -40,6 +45,7 @@ def _obtener_clase_progreso():
         return ProgresoMensual
     except Exception:
         return None
+
 
 
 def _extraer_id(obj: Any, *campos_posibles: str) -> Optional[int]:
@@ -61,6 +67,7 @@ def _extraer_id(obj: Any, *campos_posibles: str) -> Optional[int]:
                 continue
             return valor
     return None
+
 
 
 def _instanciar_progreso_mensual(
@@ -105,10 +112,12 @@ def _instanciar_progreso_mensual(
     return progreso
 
 
+
 class ControlProgreso(ControlBase):
     """
     Controlador para gestión de progreso mensual y métricas.
     """
+
 
     def __init__(
         self,
@@ -120,21 +129,26 @@ class ControlProgreso(ControlBase):
         self._progreso_dao = progreso_dao or _obtener_progreso_dao_default()
         self._sesion_dao = sesion_dao or _obtener_sesion_dao_default()
 
+
     @property
     def progreso_dao(self) -> Optional[ProgresoMensualDAO]:
         return self._progreso_dao
+
 
     @progreso_dao.setter
     def progreso_dao(self, valor: Optional[ProgresoMensualDAO]):
         self._progreso_dao = valor
 
+
     @property
     def sesion_dao(self) -> Optional[SesionEntrenamientoDAO]:
         return self._sesion_dao
 
+
     @sesion_dao.setter
     def sesion_dao(self, valor: Optional[SesionEntrenamientoDAO]):
         self._sesion_dao = valor
+
 
     def calcular_resumen_cliente(self, cliente: object) -> Dict[str, Any]:
         """
@@ -145,8 +159,10 @@ class ControlProgreso(ControlBase):
         if id_cliente is None or id_cliente <= 0:
             raise ValueError("El id del cliente debe ser un entero positivo")
 
+
         if not self._sesion_dao:
             raise RuntimeError("El DAO de sesiones no está disponible")
+
 
         sesiones = self._sesion_dao.listar_por_cliente(id_cliente)
         
@@ -161,7 +177,11 @@ class ControlProgreso(ControlBase):
                 total_minutos += s.duracion_real
                 total_calorias += Decimal(str(s.calorias_quemadas))
 
+
+        # LOG DOBLE: ControlBase + logger.py
         self._registrar_log(f"CLIENTE_{id_cliente}", "CONSULTA_PROGRESO")
+        log_consulta_progreso(f"CLIENTE_{id_cliente}")
+
 
         return {
             "id_cliente": id_cliente,
@@ -170,9 +190,11 @@ class ControlProgreso(ControlBase):
             "total_calorias": total_calorias.quantize(Decimal("0.01")),
         }
 
+
     def obtener_resumen_cliente(self, cliente: object) -> Dict[str, Any]:
         """Alias de calcular_resumen_cliente."""
         return self.calcular_resumen_cliente(cliente)
+
 
     def calcular_impacto_calorico_rutina(
         self,
@@ -188,9 +210,12 @@ class ControlProgreso(ControlBase):
         else:
             total = sum((Decimal(str(e.calorias_estimadas)) for e in rutina.ejercicios), Decimal("0"))
         
+        # LOG DOBLE: ControlBase + logger.py
         self._registrar_log(usuario_consulta or "SISTEMA", "CONSULTA_IMPACTO")
+        log_consulta_impacto(usuario_consulta or "SISTEMA")
         
         return total.quantize(Decimal("0.01"))
+
 
     def obtener_impacto_rutina(
         self,
@@ -199,6 +224,7 @@ class ControlProgreso(ControlBase):
     ) -> Decimal:
         """Alias de calcular_impacto_calorico_rutina."""
         return self.calcular_impacto_calorico_rutina(rutina, usuario_consulta)
+
 
     def generar_progreso_mensual(
         self,
@@ -214,10 +240,12 @@ class ControlProgreso(ControlBase):
         if not self._progreso_dao:
             raise RuntimeError("El DAO de progreso mensual no está disponible")
 
+
         id_cliente = _extraer_id(cliente, "id_usuario", "id_cliente", "id")
         
         if id_cliente is None or id_cliente <= 0:
             raise ValueError("El id del cliente debe ser un entero positivo")
+
 
         # Si mes es un date, extraer mes y anio
         if isinstance(mes, date):
@@ -237,6 +265,7 @@ class ControlProgreso(ControlBase):
         if peso_actual is None:
             raise ValueError("Se requiere peso_actual")
 
+
         progreso = _instanciar_progreso_mensual(
             id_cliente=id_cliente,
             mes=mes_num,
@@ -244,11 +273,15 @@ class ControlProgreso(ControlBase):
             peso_registrado=peso_actual,
         )
 
+
         progreso_guardado = self._progreso_dao.guardar(progreso)
         
+        # LOG DOBLE: ControlBase + logger.py
         self._registrar_log(f"CLIENTE_{id_cliente}", "GENERAR_PROGRESO")
+        log_generar_progreso(f"CLIENTE_{id_cliente}")
         
         return progreso_guardado
+
 
     def consultar_progreso(self, cliente: object) -> List[ProgresoMensual]:
         """
@@ -257,11 +290,16 @@ class ControlProgreso(ControlBase):
         if not self._progreso_dao:
             raise RuntimeError("El DAO de progreso mensual no está disponible")
 
+
         id_cliente = _extraer_id(cliente, "id_usuario", "id_cliente", "id")
         
         if id_cliente is None or id_cliente <= 0:
             raise ValueError("El id del cliente debe ser un entero positivo")
 
+
+        # LOG DOBLE: ControlBase + logger.py
         self._registrar_log(f"CLIENTE_{id_cliente}", "CONSULTA_PROGRESO")
+        log_consulta_progreso(f"CLIENTE_{id_cliente}")
+
 
         return self._progreso_dao.buscar_por_cliente(id_cliente)

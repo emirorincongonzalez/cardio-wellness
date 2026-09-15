@@ -25,7 +25,7 @@ def datos_prueba():
     bd.abrir_conexion()
 
     correo = f"test.rutina.{uuid4().hex}@example.com"
-    contrasenia_hash = GestorSeguridad.generar_hash("Clave123")
+    contrasenia_hash = GestorSeguridad.generar_hash("Clave123!")
 
     try:
         with bd._conexion.cursor() as cursor:

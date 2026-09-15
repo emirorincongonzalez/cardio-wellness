@@ -25,7 +25,7 @@ def test_rounds_desde_variable_entorno_bcrypt_rounds(monkeypatch):
     monkeypatch.setenv("BCRYPT_ROUNDS", "4")
 
     assert GestorSeguridad._obtener_rounds() == 4
-    hash_generado = GestorSeguridad.generar_hash("Password123")
+    hash_generado = GestorSeguridad.generar_hash("Password123!")
     assert hash_generado.startswith("$2b$04$")
 
 
@@ -34,7 +34,7 @@ def test_rounds_desde_variable_entorno_rounds(monkeypatch):
     monkeypatch.setenv("ROUNDS", "5")
 
     assert GestorSeguridad._obtener_rounds() == 5
-    hash_generado = GestorSeguridad.generar_hash("Password123")
+    hash_generado = GestorSeguridad.generar_hash("Password123!")
     assert hash_generado.startswith("$2b$05$")
 
 

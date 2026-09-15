@@ -15,7 +15,7 @@ def crear_cliente(correo: str) -> Cliente:
         nombre="Carlos",
         apellido="Perez",
         correo_electronico=correo,
-        contrasenia_hash="Clave123",
+        contrasenia_hash="Clave123!",
         edad=28,
         peso=82.5,
         altura=1.75,
@@ -31,7 +31,7 @@ def crear_usuario(correo: str):
         nombre="Usuario",
         apellido="Prueba",
         correo_electronico=correo,
-        contrasenia_hash="Clave123",
+        contrasenia_hash="Clave123!",
         edad=30,
     )
 
@@ -45,7 +45,7 @@ def test_usuario_dao():
         nombre="Usuario",
         apellido="Prueba",
         correo_electronico=correo,
-        contrasenia_hash="Clave123",
+        contrasenia_hash="Clave123!",
         edad=30,
         peso=70.0,
         altura=1.70,
@@ -55,7 +55,7 @@ def test_usuario_dao():
     usuario_guardado = None
     
     try:
-        usuario_guardado = dao.guardar(usuario, contrasenia_plana="Clave123")
+        usuario_guardado = dao.guardar(usuario, contrasenia_plana="Clave123!")
         
         assert usuario_guardado.id_usuario is not None
         assert usuario_guardado.fecha_registro is not None
@@ -77,7 +77,7 @@ def test_cliente_dao():
         nombre="Carlos",
         apellido="Perez",
         correo_electronico=correo,
-        contrasenia_hash="Clave123",
+        contrasenia_hash="Clave123!",
         edad=28,
         peso=82.5,
         altura=1.75,

@@ -23,7 +23,7 @@ def crear_usuario(correo: str) -> Administrador:
         nombre="Usuario",
         apellido="Prueba",
         correo_electronico=correo,
-        contrasenia_hash="Clave123",
+        contrasenia_hash="Clave123!",
         edad=30,
     )
 
@@ -34,7 +34,7 @@ def test_usuario_dao_guardar(dao):
     correo = "usuario.dao.guardar@example.com"
     usuario = crear_usuario(correo)
     
-    usuario_guardado = dao.guardar(usuario, contrasenia_plana="Clave123")
+    usuario_guardado = dao.guardar(usuario, contrasenia_plana="Clave123!")
     
     assert usuario_guardado.id_usuario is not None
     assert usuario_guardado.fecha_registro is not None
@@ -50,7 +50,7 @@ def test_usuario_dao_buscar_por_correo(dao):
     correo = "usuario.buscar.correo@example.com"
     usuario = crear_usuario(correo)
     
-    usuario_guardado = dao.guardar(usuario, contrasenia_plana="Clave123")
+    usuario_guardado = dao.guardar(usuario, contrasenia_plana="Clave123!")
     
     usuario_encontrado = dao.buscar_por_correo(correo)
     
@@ -68,7 +68,7 @@ def test_usuario_dao_actualizar(dao):
     correo = "usuario.actualizar@example.com"
     usuario = crear_usuario(correo)
     
-    usuario_guardado = dao.guardar(usuario, contrasenia_plana="Clave123")
+    usuario_guardado = dao.guardar(usuario, contrasenia_plana="Clave123!")
     usuario_guardado.nombre = "NombreActualizado"
     
     usuario_actualizado = dao.actualizar(usuario_guardado)
@@ -89,7 +89,7 @@ def test_usuario_dao_actualizar_correo(dao):
     correo_nuevo = "usuario.correo.nuevo@example.com"
     usuario = crear_usuario(correo_original)
     
-    usuario_guardado = dao.guardar(usuario, contrasenia_plana="Clave123")
+    usuario_guardado = dao.guardar(usuario, contrasenia_plana="Clave123!")
     usuario_guardado.correo_electronico = correo_nuevo
     
     dao.actualizar(usuario_guardado)
@@ -108,7 +108,7 @@ def test_usuario_dao_actualizar_preserva_hash(dao):
     correo = "usuario.preservar.hash@example.com"
     usuario = crear_usuario(correo)
     
-    usuario_guardado = dao.guardar(usuario, contrasenia_plana="Clave123")
+    usuario_guardado = dao.guardar(usuario, contrasenia_plana="Clave123!")
     
     # ✅ Busca de nuevo para obtener el hash real de la BD
     usuario_fresh = dao.buscar_por_correo(correo)
@@ -140,7 +140,7 @@ def test_usuario_dao_eliminar_retorna_true(dao):
     correo = "usuario.eliminar.true@example.com"
     usuario = crear_usuario(correo)
     
-    usuario_guardado = dao.guardar(usuario, contrasenia_plana="Clave123")
+    usuario_guardado = dao.guardar(usuario, contrasenia_plana="Clave123!")
     
     resultado = dao.eliminar_por_id(usuario_guardado.id_usuario)
     
@@ -157,12 +157,12 @@ def test_usuario_dao_rechaza_correo_duplicado(dao):
     correo = f"usuario.duplicado.{int(time.time())}@example.com"
     usuario = crear_usuario(correo)
     
-    dao.guardar(usuario, contrasenia_plana="Clave123")
+    dao.guardar(usuario, contrasenia_plana="Clave123!")
     
     segundo_usuario = crear_usuario(correo)
     
     with pytest.raises(ValueError, match="El correo ya está registrado"):
-        dao.guardar(segundo_usuario, contrasenia_plana="Clave123")
+        dao.guardar(segundo_usuario, contrasenia_plana="Clave123!")
     
     # Limpieza
     dao.eliminar_por_id(usuario.id_usuario)

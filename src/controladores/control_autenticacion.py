@@ -1,10 +1,12 @@
 ﻿from typing import Optional
 
+
 from src.modelos.usuario import Usuario
 from src.controladores.control_base import ControlBase
 from src.persistencia.usuario_dao import UsuarioDAO
 from src.servicios.fabrica_usuario import FabricaUsuario
 from src.servicios.gestor_seguridad import GestorSeguridad
+from src.utilidades.logger import log_login_exitoso, log_login_fallido, log_registro_administrador
 
 
 class ControlAutenticacion(ControlBase):
@@ -68,9 +70,16 @@ class ControlAutenticacion(ControlBase):
         if usuario:
             self.usuario_actual = usuario
             correo = getattr(usuario, "correo_electronico", correo_limpio)
+            
+            # LOG REAL INTEGRADO
+            log_login_exitoso(correo)
+            
             self._registrar_log(correo, "LOGIN_EXITOSO")
             return usuario
         else:
+            # LOG REAL INTEGRADO
+            log_login_fallido(correo_limpio)
+            
             self._registrar_log(correo_limpio, "LOGIN_FALLIDO")
             return None
 
@@ -147,6 +156,7 @@ class ControlAutenticacion(ControlBase):
         """
         Registra un nuevo administrador en el sistema.
 
+
         Args:
             nombre (str): Nombre del administrador.
             apellido (str): Apellido del administrador.
@@ -154,8 +164,10 @@ class ControlAutenticacion(ControlBase):
             contrasenia_plana (str): Contraseña en texto plano.
             edad (int): Edad del administrador.
 
+
         Returns:
             Usuario: El administrador registrado.
+
 
         Raises:
             ValueError: Si algún parámetro es inválido.
@@ -164,16 +176,20 @@ class ControlAutenticacion(ControlBase):
         if not isinstance(nombre, str) or not nombre.strip():
             raise ValueError("El nombre no puede estar vacío.")
 
+
         # Validar apellido
         if not isinstance(apellido, str) or not apellido.strip():
             raise ValueError("El apellido no puede estar vacío.")
+
 
         # Validar edad
         if not isinstance(edad, int) or isinstance(edad, bool) or edad <= 0:
             raise ValueError("La edad debe ser un número entero mayor que cero.")
 
+
         # Generar hash de contraseña
         contrasenia_hash = GestorSeguridad.generar_hash(contrasenia_plana)
+
 
         # Crear administrador
         from src.modelos.administrador import Administrador
@@ -185,5 +201,12 @@ class ControlAutenticacion(ControlBase):
             edad=edad,
         )
 
+
         # Guardar en la base de datos
-        return self.usuario_dao.guardar(administrador)
+        usuario_guardado = self.usuario_dao.guardar(administrador)
+        
+        # LOG REAL INTEGRADO
+        if usuario_guardado:
+            log_registro_administrador(correo_electronico.strip())
+        
+        return usuario_guardado

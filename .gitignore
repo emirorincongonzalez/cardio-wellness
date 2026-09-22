@@ -49,3 +49,10 @@ desktop.ini
 
 # Testing
 .tox/
+# Archivos locales y sensibles
+logs/
+*.log
+error_sesiones.txt
+crear_admin.py
+cambiar_password.py
+restablecer_admin.py

@@ -1,8 +1,6 @@
-from typing import Optional
-
+﻿from typing import Optional
 
 from psycopg2 import IntegrityError
-
 
 from src.modelos.administrador import Administrador
 from src.modelos.cliente import Cliente
@@ -10,80 +8,206 @@ from src.persistencia.conexion_bd import ConexionBD
 from src.servicios.gestor_seguridad import GestorSeguridad
 
 
-
-
-
 class UsuarioDAO:
-
+    """
+    DAO para usuarios, clientes y administradores.
+    """
 
     def __init__(self) -> None:
-        """Inicializa el DAO con la instancia Singleton de ConexionBD."""
-        self._conexion = ConexionBD.obtener_instancia()
+        self._conexion = (
+            ConexionBD.obtener_instancia()
+        )
 
-
-    def guardar(self, usuario, contrasenia_plana: str):
+    @staticmethod
+    def _normalizar_correo(
+        correo: str,
+    ) -> str:
         """
-        Guarda un nuevo usuario en la base de datos.
-
-
-        Args:
-            usuario: Instancia del usuario a guardar.
-            contrasenia_plana (str): Contraseña en texto plano del usuario.
-
-
-        Returns:
-            Usuario: Instancia del usuario con el ID asignado y fecha de registro.
-
-
-        Raises:
-            ValueError: Si el correo ya está registrado.
-            RuntimeError: Si ocurre un error inesperado durante la operación.
+        Limpia y normaliza un correo electrónico.
         """
-        if not isinstance(contrasenia_plana, str) or not contrasenia_plana:
-            raise ValueError("La contraseña debe ser una cadena no vacía.")
+        if not isinstance(correo, str):
+            raise ValueError(
+                "El correo debe ser una cadena."
+            )
 
+        correo_limpio = correo.strip().lower()
 
-        # Generar hash de la contraseña
-        contrasenia_hash = GestorSeguridad.generar_hash(contrasenia_plana)
+        if not correo_limpio:
+            raise ValueError(
+                "El correo no puede estar vacío."
+            )
 
+        return correo_limpio
 
-        # Insertar en usuarios
+    @staticmethod
+    def _obtener_tipo_usuario(
+        valor,
+    ) -> str:
+        """
+        Convierte un enum o texto a un tipo normalizado.
+        """
+        valor = getattr(
+            valor,
+            "value",
+            valor,
+        )
+
+        tipo = str(valor).strip().lower()
+
+        if "." in tipo:
+            tipo = tipo.split(".")[-1]
+
+        if tipo == "admin":
+            return "administrador"
+
+        return tipo
+
+    @staticmethod
+    def _validar_usuario(
+        usuario,
+    ) -> None:
+        """
+        Valida los datos básicos de un usuario.
+        """
+        if usuario is None:
+            raise ValueError(
+                "El usuario no puede ser nulo."
+            )
+
+        if not isinstance(
+            getattr(usuario, "nombre", None),
+            str,
+        ) or not usuario.nombre.strip():
+            raise ValueError(
+                "El nombre no puede estar vacío."
+            )
+
+        if not isinstance(
+            getattr(usuario, "apellido", None),
+            str,
+        ) or not usuario.apellido.strip():
+            raise ValueError(
+                "El apellido no puede estar vacío."
+            )
+
+        if not isinstance(
+            getattr(usuario, "edad", None),
+            int,
+        ) or isinstance(usuario.edad, bool):
+            raise ValueError(
+                "La edad debe ser un entero."
+            )
+
+        if usuario.edad <= 0:
+            raise ValueError(
+                "La edad debe ser positiva."
+            )
+
+    def guardar(
+        self,
+        usuario,
+        contrasenia_plana: str,
+    ):
+        """
+        Guarda un usuario.
+
+        La contraseña recibida es plana únicamente durante
+        este método. Antes de enviarla a PostgreSQL se
+        convierte siempre en un hash bcrypt.
+        """
+        self._validar_usuario(usuario)
+
+        if (
+            not isinstance(contrasenia_plana, str)
+            or not contrasenia_plana
+        ):
+            raise ValueError(
+                "La contraseña debe ser una cadena "
+                "no vacía."
+            )
+
+        correo_limpio = (
+            self._normalizar_correo(
+                usuario.correo_electronico
+            )
+        )
+
+        contrasenia_hash = (
+            GestorSeguridad.generar_hash(
+                contrasenia_plana
+            )
+        )
+
+        tipo_usuario = (
+            self._obtener_tipo_usuario(
+                getattr(
+                    usuario,
+                    "tipo_usuario",
+                    None,
+                )
+            )
+        )
+
+        if tipo_usuario not in {
+            "cliente",
+            "administrador",
+        }:
+            raise ValueError(
+                "El tipo de usuario no es válido."
+            )
+
         sql_usuario = """
             INSERT INTO usuarios (
                 nombre,
                 apellido,
                 correo_electronico,
-                "contraseña_hash",
+                contrasenia_hash,
                 edad,
                 tipo_usuario
             )
             VALUES (%s, %s, %s, %s, %s, %s)
-            RETURNING id_usuario, fecha_registro
+            RETURNING
+                id_usuario,
+                fecha_registro
         """
+
         parametros_usuario = (
-            usuario.nombre,
-            usuario.apellido,
-            usuario.correo_electronico,
+            usuario.nombre.strip(),
+            usuario.apellido.strip(),
+            correo_limpio,
             contrasenia_hash,
             usuario.edad,
-            usuario.tipo_usuario
+            tipo_usuario,
         )
 
-
         try:
-            # Insertar usuario (con commit manual porque ejecutar_consulta no hace commit)
-            resultado = self._conexion.ejecutar_consulta(sql_usuario, parametros_usuario)
+            resultado = (
+                self._conexion.ejecutar_consulta(
+                    sql_usuario,
+                    parametros_usuario,
+                )
+            )
+
             if not resultado:
-                raise RuntimeError("No se pudo guardar el usuario.")
-            usuario.id_usuario = resultado[0]['id_usuario']
-            usuario.fecha_registro = resultado[0]['fecha_registro']
+                raise RuntimeError(
+                    "No se pudo guardar el usuario."
+                )
 
+            usuario.id_usuario = (
+                resultado[0]["id_usuario"]
+            )
 
-            # Hacer commit manual después de la inserción
-            self._conexion._conexion.commit()
+            usuario.fecha_registro = (
+                resultado[0]["fecha_registro"]
+            )
 
+            # Mantiene el hash en el objeto sin guardar
+            # nunca la contraseña plana.
+            if hasattr(usuario, "contrasenia_hash"):
+                usuario.contrasenia_hash = (
+                    contrasenia_hash
+                )
 
-            # Si es cliente, insertar en clientes
             if isinstance(usuario, Cliente):
                 sql_cliente = """
                     INSERT INTO clientes (
@@ -95,52 +219,73 @@ class UsuarioDAO:
                     VALUES (%s, %s, %s, %s)
                     RETURNING fecha_ingreso
                 """
+
                 parametros_cliente = (
                     usuario.id_usuario,
                     usuario.peso,
                     usuario.altura,
-                    usuario.objetivo
+                    usuario.objetivo,
                 )
-                resultado_cliente = self._conexion.ejecutar_consulta(sql_cliente, parametros_cliente)
-                if resultado_cliente:
-                    usuario.fecha_ingreso = resultado_cliente[0]['fecha_ingreso']
-                self._conexion._conexion.commit()  # Commit de la segunda inserción
 
+                resultado_cliente = (
+                    self._conexion.ejecutar_consulta(
+                        sql_cliente,
+                        parametros_cliente,
+                    )
+                )
+
+                if resultado_cliente:
+                    usuario.fecha_ingreso = (
+                        resultado_cliente[0][
+                            "fecha_ingreso"
+                        ]
+                    )
+
+            self._conexion._conexion.commit()
 
             return usuario
 
-
-        except IntegrityError as e:
+        except IntegrityError as error:
             self._conexion._conexion.rollback()
-            if e.pgcode == "23505":  # Violación de restricción única
-                raise ValueError("El correo ya está registrado.") from e
-            raise RuntimeError(f"Error de integridad al guardar el usuario: {e}") from e
 
+            if error.pgcode == "23505":
+                raise ValueError(
+                    "El correo ya está registrado."
+                ) from error
 
-        except Exception as e:
+            if error.pgcode == "23503":
+                raise ValueError(
+                    "La información relacionada "
+                    "no existe."
+                ) from error
+
+            raise RuntimeError(
+                "Error de integridad al guardar "
+                f"el usuario: {error}"
+            ) from error
+
+        except Exception:
             self._conexion._conexion.rollback()
-            raise RuntimeError(f"Error inesperado al guardar el usuario: {e}") from e
+            raise
 
-
-    def buscar_por_correo(self, correo: str):
+    def buscar_por_correo(
+        self,
+        correo: str,
+    ) -> Optional[object]:
         """
-        Busca un usuario por su correo electrónico.
-
-
-        Args:
-            correo (str): Correo electrónico del usuario a buscar.
-
-
-        Returns:
-            Usuario: Instancia del usuario encontrado, o None si no se encuentra.
+        Busca un usuario por correo.
         """
+        correo_limpio = (
+            self._normalizar_correo(correo)
+        )
+
         sql = """
             SELECT
                 u.id_usuario,
                 u.nombre,
                 u.apellido,
                 u.correo_electronico,
-                u."contraseña_hash",
+                u.contrasenia_hash,
                 u.edad,
                 u.tipo_usuario,
                 u.fecha_registro,
@@ -148,140 +293,335 @@ class UsuarioDAO:
                 c.altura,
                 c.objetivo,
                 c.fecha_ingreso
-            FROM usuarios u
-            LEFT JOIN clientes c ON u.id_usuario = c.id_usuario
-            WHERE u.correo_electronico = %s
+            FROM usuarios AS u
+            LEFT JOIN clientes AS c
+                ON u.id_usuario = c.id_usuario
+            WHERE LOWER(u.correo_electronico) = %s
+            LIMIT 1
         """
-        resultado = self._conexion.ejecutar_consulta(sql, (correo,))
+
+        resultado = (
+            self._conexion.ejecutar_consulta(
+                sql,
+                (correo_limpio,),
+            )
+        )
+
         if not resultado:
             return None
 
-
         fila = resultado[0]
-        tipo_usuario = fila['tipo_usuario'].strip().lower()
 
+        tipo_usuario = (
+            self._obtener_tipo_usuario(
+                fila["tipo_usuario"]
+            )
+        )
 
         if tipo_usuario == "cliente":
             return Cliente(
-                id_usuario=fila['id_usuario'],
-                nombre=fila['nombre'],
-                apellido=fila['apellido'],
-                correo_electronico=fila['correo_electronico'],
-                contrasenia_hash=fila['contraseña_hash'],
-                edad=fila['edad'],
-                fecha_registro=fila['fecha_registro'],
-                peso=float(fila['peso']) if fila['peso'] else None,
-                altura=float(fila['altura']) if fila['altura'] else None,
-                objetivo=fila['objetivo'],
-                fecha_ingreso=fila['fecha_ingreso']
+                id_usuario=fila["id_usuario"],
+                nombre=fila["nombre"],
+                apellido=fila["apellido"],
+                correo_electronico=(
+                    fila["correo_electronico"]
+                ),
+                contrasenia_hash=(
+                    fila["contrasenia_hash"]
+                ),
+                edad=fila["edad"],
+                fecha_registro=(
+                    fila["fecha_registro"]
+                ),
+                peso=(
+                    float(fila["peso"])
+                    if fila["peso"] is not None
+                    else None
+                ),
+                altura=(
+                    float(fila["altura"])
+                    if fila["altura"] is not None
+                    else None
+                ),
+                objetivo=fila["objetivo"],
+                fecha_ingreso=(
+                    fila["fecha_ingreso"]
+                ),
             )
-        elif tipo_usuario == "administrador":
+
+        if tipo_usuario == "administrador":
             return Administrador(
-                id_usuario=fila['id_usuario'],
-                nombre=fila['nombre'],
-                apellido=fila['apellido'],
-                correo_electronico=fila['correo_electronico'],
-                contrasenia_hash=fila['contraseña_hash'],
-                edad=fila['edad'],
-                fecha_registro=fila['fecha_registro']
+                id_usuario=fila["id_usuario"],
+                nombre=fila["nombre"],
+                apellido=fila["apellido"],
+                correo_electronico=(
+                    fila["correo_electronico"]
+                ),
+                contrasenia_hash=(
+                    fila["contrasenia_hash"]
+                ),
+                edad=fila["edad"],
+                fecha_registro=(
+                    fila["fecha_registro"]
+                ),
             )
-        else:
-            raise ValueError(f"Tipo de usuario desconocido: {tipo_usuario}")
 
+        raise ValueError(
+            "Tipo de usuario desconocido: "
+            f"{tipo_usuario}"
+        )
 
-    def iniciar_sesion(self, correo: str, contrasenia: str):
+    def iniciar_sesion(
+        self,
+        correo: str,
+        contrasenia: str,
+    ) -> Optional[object]:
         """
-        Verifica las credenciales de un usuario.
-
-
-        Args:
-            correo (str): Correo electrónico del usuario.
-            contrasenia (str): Contraseña en texto plano del usuario.
-
-
-        Returns:
-            Usuario: Instancia del usuario si las credenciales son válidas, o None si no.
+        Busca el usuario y verifica la contraseña.
         """
-        usuario = self.buscar_por_correo(correo)
+        if not isinstance(correo, str):
+            return None
 
+        if not isinstance(contrasenia, str):
+            return None
+
+        if not contrasenia:
+            return None
+
+        try:
+            usuario = self.buscar_por_correo(
+                correo
+            )
+        except (
+            ValueError,
+            RuntimeError,
+        ):
+            return None
 
         if usuario is None:
             return None
 
+        hash_guardado = getattr(
+            usuario,
+            "contrasenia_hash",
+            None,
+        )
 
-        if GestorSeguridad.verificar_contrasenia(contrasenia, usuario.contrasenia_hash):
-            return usuario
-        return None
+        if not isinstance(hash_guardado, str):
+            return None
 
+        if not hash_guardado.startswith(
+            ("$2a$", "$2b$", "$2y$")
+        ):
+            return None
 
-    def actualizar(self, usuario):
+        if len(hash_guardado) != 60:
+            return None
+
+        return (
+            usuario
+            if GestorSeguridad.verificar_contrasenia(
+                contrasenia,
+                hash_guardado,
+            )
+            else None
+        )
+
+    def actualizar(
+        self,
+        usuario,
+    ):
         """
-        Actualiza los datos de un usuario.
-
-
-        Args:
-            usuario: Instancia de Usuario con id_usuario.
-
-
-        Returns:
-            Usuario: Instancia del usuario actualizado.
-
-
-        Raises:
-            ValueError: Si el usuario no tiene un id_usuario o si el correo ya está registrado.
+        Actualiza los datos básicos de un usuario.
         """
-        if usuario.id_usuario is None:
-            raise ValueError("El usuario debe tener un id para actualizarse.")
+        if getattr(
+            usuario,
+            "id_usuario",
+            None,
+        ) is None:
+            raise ValueError(
+                "El usuario debe tener un ID."
+            )
 
+        self._validar_usuario(usuario)
+
+        correo_limpio = (
+            self._normalizar_correo(
+                usuario.correo_electronico
+            )
+        )
+
+        tipo_usuario = (
+            self._obtener_tipo_usuario(
+                usuario.tipo_usuario
+            )
+        )
+
+        if tipo_usuario not in {
+            "cliente",
+            "administrador",
+        }:
+            raise ValueError(
+                "El tipo de usuario no es válido."
+            )
 
         sql = """
             UPDATE usuarios
-            SET nombre = %s,
+            SET
+                nombre = %s,
                 apellido = %s,
                 correo_electronico = %s,
                 edad = %s,
                 tipo_usuario = %s
             WHERE id_usuario = %s
         """
+
         parametros = (
-            usuario.nombre,
-            usuario.apellido,
-            usuario.correo_electronico,
+            usuario.nombre.strip(),
+            usuario.apellido.strip(),
+            correo_limpio,
             usuario.edad,
-            usuario.tipo_usuario,
-            usuario.id_usuario
+            tipo_usuario,
+            usuario.id_usuario,
         )
 
+        try:
+            actualizado = (
+                self._conexion.ejecutar_actualizacion(
+                    sql,
+                    parametros,
+                )
+            )
+
+            if not actualizado:
+                raise ValueError(
+                    "No se encontró el usuario."
+                )
+
+            self._conexion._conexion.commit()
+
+            return usuario
+
+        except IntegrityError as error:
+            self._conexion._conexion.rollback()
+
+            if error.pgcode == "23505":
+                raise ValueError(
+                    "El correo ya está registrado."
+                ) from error
+
+            raise ValueError(
+                "Error de integridad al actualizar "
+                f"el usuario: {error}"
+            ) from error
+
+        except ValueError:
+            self._conexion._conexion.rollback()
+            raise
+
+        except Exception as error:
+            self._conexion._conexion.rollback()
+
+            raise ValueError(
+                "Error al actualizar el usuario: "
+                f"{error}"
+            ) from error
+
+    def cambiar_contrasenia(
+        self,
+        id_usuario: int,
+        contrasenia_nueva: str,
+    ) -> bool:
+        """
+        Cambia la contraseña generando siempre un hash.
+        """
+        if (
+            not isinstance(id_usuario, int)
+            or isinstance(id_usuario, bool)
+            or id_usuario <= 0
+        ):
+            raise ValueError(
+                "El ID debe ser un entero positivo."
+            )
+
+        if (
+            not isinstance(contrasenia_nueva, str)
+            or not contrasenia_nueva
+        ):
+            raise ValueError(
+                "La contraseña no puede estar vacía."
+            )
+
+        nuevo_hash = (
+            GestorSeguridad.generar_hash(
+                contrasenia_nueva
+            )
+        )
+
+        sql = """
+            UPDATE usuarios
+            SET contrasenia_hash = %s
+            WHERE id_usuario = %s
+        """
 
         try:
-            actualizado = self._conexion.ejecutar_actualizacion(sql, parametros)
-            if not actualizado:
-                raise ValueError("No se encontró el usuario.")
-            return usuario
-        except IntegrityError as e:
+            actualizado = (
+                self._conexion.ejecutar_actualizacion(
+                    sql,
+                    (
+                        nuevo_hash,
+                        id_usuario,
+                    ),
+                )
+            )
+
+            self._conexion._conexion.commit()
+
+            return bool(actualizado)
+
+        except Exception:
             self._conexion._conexion.rollback()
-            if e.pgcode == "23505":
-                raise ValueError("El correo ya está registrado.") from e
-            raise ValueError(f"Error de integridad al actualizar el usuario: {e}") from e
-        except ValueError:
-            # Dejar pasar los ValueError sin envolver
             raise
-        except Exception as e:
+
+    def eliminar_por_id(
+        self,
+        id_usuario: int,
+    ) -> bool:
+        """
+        Elimina un usuario por ID.
+        """
+        if isinstance(id_usuario, bool):
+            raise ValueError(
+                "El ID debe ser un entero positivo."
+            )
+
+        if not isinstance(id_usuario, int):
+            raise ValueError(
+                "El ID debe ser un entero positivo."
+            )
+
+        if id_usuario <= 0:
+            raise ValueError(
+                "El ID debe ser un entero positivo."
+            )
+
+        sql = """
+            DELETE FROM usuarios
+            WHERE id_usuario = %s
+        """
+
+        try:
+            eliminado = (
+                self._conexion.ejecutar_actualizacion(
+                    sql,
+                    (id_usuario,),
+                )
+            )
+
+            self._conexion._conexion.commit()
+
+            return bool(eliminado)
+
+        except Exception:
             self._conexion._conexion.rollback()
-            raise ValueError(f"Error al actualizar el usuario: {e}") from e
-
-
-    def eliminar_por_id(self, id_usuario: int) -> bool:
-        """
-        Elimina un usuario de la base de datos por su ID.
-
-
-        Args:
-            id_usuario (int): ID del usuario a eliminar.
-
-
-        Returns:
-            bool: True si el usuario fue eliminado, False en caso contrario.
-        """
-        sql = "DELETE FROM usuarios WHERE id_usuario = %s"
-        return self._conexion.ejecutar_actualizacion(sql, (id_usuario,))
+            raise

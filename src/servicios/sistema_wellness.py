@@ -1,6 +1,17 @@
+"""
+Servicio de alto nivel de la aplicación Cardio-Wellness.
+
+Coordina:
+
+- Sugerencias de rutinas.
+- Cálculo de diferencias de peso.
+- Generación de reportes PDF.
+"""
+
 from decimal import Decimal
-from typing import List, Optional, Union
+from typing import Any, Optional, Union
 import unicodedata
+
 
 from src.controladores.control_base import ControlBase
 from src.controladores.control_clientes import ControlClientes
@@ -9,218 +20,434 @@ from src.controladores.control_rutinas import ControlRutinas
 from src.modelos.cliente import Cliente
 from src.modelos.progreso_mensual import ProgresoMensual
 from src.modelos.rutina import Rutina
-from src.servicios.generador_reportes_pdf import GeneradorReportesPDF
-from src.servicios.fabrica_usuario import FabricaUsuario
+from src.servicios.generador_reportes_pdf import (
+    GeneradorReportesPDF,
+)
 
 
-def _normalizar_texto(texto: str) -> str:
-    """Elimina tildes y convierte a mayúsculas para comparaciones."""
+def _normalizar_texto(texto: Any) -> str:
+    """
+    Elimina tildes y convierte un texto a mayúsculas.
+    """
+    texto_normalizado = unicodedata.normalize(
+        "NFD",
+        str(texto).upper(),
+    )
+
     return "".join(
-        c for c in unicodedata.normalize("NFD", str(texto).upper())
-        if unicodedata.category(c) != "Mn"
+        caracter
+        for caracter in texto_normalizado
+        if unicodedata.category(caracter) != "Mn"
     )
 
 
 class SistemaWellness(ControlBase):
     """
-    Servicio de alto nivel que orquesta funcionalidades del sistema:
-    sugerencia de rutinas, cálculo de diferencias de peso y generación de reportes.
+    Servicio de alto nivel que coordina funcionalidades
+    relacionadas con clientes, rutinas y progreso.
     """
 
     def __init__(
         self,
-        control_clientes: Optional[ControlClientes] = None,
-        control_rutinas: Optional[ControlRutinas] = None,
-        control_progreso: Optional[ControlProgreso] = None,
+        control_clientes: Optional[ControlClientes],
+        control_rutinas: Optional[ControlRutinas],
+        control_progreso: Optional[ControlProgreso],
         generador_pdf: Optional[GeneradorReportesPDF] = None,
         ruta_log: str = "logs/LOG_CARDIO.txt",
     ) -> None:
+        """
+        Inicializa el servicio con controladores inyectados.
+        """
         super().__init__(ruta_log=ruta_log)
-        self.control_clientes = control_clientes or ControlClientes(ruta_log=ruta_log)
-        self.control_rutinas = control_rutinas or ControlRutinas(ruta_log=ruta_log)
-        self.control_progreso = control_progreso or ControlProgreso(ruta_log=ruta_log)
-        self.generador_pdf = generador_pdf or GeneradorReportesPDF()
 
-    def _registrar_log(self, usuario: str, accion: str, detalle: Optional[str] = None) -> None:
-        """Sobrescribe el método de ControlBase para incluir detalle opcional."""
-        if detalle:
-            super()._registrar_log(usuario, accion, detalle)
-        else:
-            super()._registrar_log(usuario, accion)
+        if control_clientes is None:
+            raise ValueError(
+                "SistemaWellness requiere un "
+                "ControlClientes inicializado."
+            )
 
-    def evaluar_objetivo_y_sugerir_rutina(self, cliente: Cliente) -> Optional[Rutina]:
+        if control_rutinas is None:
+            raise ValueError(
+                "SistemaWellness requiere un "
+                "ControlRutinas inicializado."
+            )
+
+        if control_progreso is None:
+            raise ValueError(
+                "SistemaWellness requiere un "
+                "ControlProgreso inicializado."
+            )
+
+        self.control_clientes = control_clientes
+        self.control_rutinas = control_rutinas
+        self.control_progreso = control_progreso
+
+        self.generador_pdf = (
+            generador_pdf
+            if generador_pdf is not None
+            else GeneradorReportesPDF()
+        )
+
+    def _registrar_log(
+        self,
+        usuario: str,
+        accion: str,
+        detalle: Optional[str] = None,
+    ) -> None:
         """
-        Sugiere una rutina basada en el objetivo del cliente.
-
-        Args:
-            cliente (Cliente): Cliente al que se le quiere sugerir una rutina.
-
-        Returns:
-            Rutina: Rutina sugerida, o None si no hay rutinas disponibles.
+        Registra una acción en el archivo de log.
         """
-        objetivo = getattr(cliente, "objetivo", "") or ""
-        objetivo_norm = _normalizar_texto(objetivo)
+        if detalle is None:
+            super()._registrar_log(
+                usuario,
+                accion,
+            )
+            return
+
+        super()._registrar_log(
+            usuario,
+            accion,
+            detalle,
+        )
+
+    def evaluar_objetivo_y_sugerir_rutina(
+        self,
+        cliente: Cliente,
+    ) -> Optional[Union[Rutina, dict]]:
+        """
+        Sugiere una rutina basándose en el objetivo del cliente.
+        """
+        objetivo = getattr(
+            cliente,
+            "objetivo",
+            "",
+        ) or ""
+
+        objetivo_normalizado = _normalizar_texto(
+            objetivo
+        )
 
         rutinas = self.control_rutinas.listar()
+
         if not rutinas:
             self._registrar_log(
-                str(getattr(cliente, "id_usuario", "CLIENTE")),
+                self._identificador_cliente(cliente),
                 "SUGERENCIA_RUTINA",
-                "SIN_RUTINAS"
+                "SIN_RUTINAS",
             )
             return None
 
-        # Coincidencia por palabra clave del objetivo
-        if any(w in objetivo_norm for w in ("PESO", "ADELGAZAR", "QUEMA", "GRASA", "CARDIO")):
-            for rutina in rutinas:
-                # Manejar tanto dicts como objetos
-                if isinstance(rutina, dict):
-                    nom = _normalizar_texto(rutina.get("nombre", ""))
-                    desc = _normalizar_texto(rutina.get("descripcion", ""))
-                    if "QUEMA" in nom or "CARDIO" in nom or "GRASA" in desc:
-                        self._registrar_log(
-                            str(getattr(cliente, "id_usuario", "CLIENTE")),
-                            "SUGERENCIA_RUTINA",
-                            "CARDIO_QUEMA_GRASA"
-                        )
-                        return rutina
-                elif isinstance(rutina, Rutina):
-                    nom = _normalizar_texto(rutina.nombre)
-                    desc = _normalizar_texto(rutina.descripcion or "")
-                    if "QUEMA" in nom or "CARDIO" in nom or "GRASA" in desc:
-                        self._registrar_log(
-                            str(getattr(cliente, "id_usuario", "CLIENTE")),
-                            "SUGERENCIA_RUTINA",
-                            "CARDIO_QUEMA_GRASA"
-                        )
-                        return rutina
-
-        if any(w in objetivo_norm for w in ("MUSCULO", "HIPERTROFIA", "FUERZA", "VOLUMEN")):
-            for rutina in rutinas:
-                if isinstance(rutina, dict):
-                    nom = _normalizar_texto(rutina.get("nombre", ""))
-                    if "FUERZA" in nom or "HIPERTROFIA" in nom:
-                        self._registrar_log(
-                            str(getattr(cliente, "id_usuario", "CLIENTE")),
-                            "SUGERENCIA_RUTINA",
-                            "FUERZA_HIPERTROFIA"
-                        )
-                        return rutina
-                elif isinstance(rutina, Rutina):
-                    nom = _normalizar_texto(rutina.nombre)
-                    if "FUERZA" in nom or "HIPERTROFIA" in nom:
-                        self._registrar_log(
-                            str(getattr(cliente, "id_usuario", "CLIENTE")),
-                            "SUGERENCIA_RUTINA",
-                            "FUERZA_HIPERTROFIA"
-                        )
-                        return rutina
-
-        # Fallback a la primera rutina
-        rutina_default = rutinas[0]
-        self._registrar_log(
-            str(getattr(cliente, "id_usuario", "CLIENTE")),
-            "SUGERENCIA_RUTINA",
-            "DEFAULT"
+        palabras_peso = (
+            "PESO",
+            "ADELGAZAR",
+            "QUEMA",
+            "GRASA",
+            "CARDIO",
         )
+
+        if any(
+            palabra in objetivo_normalizado
+            for palabra in palabras_peso
+        ):
+            for rutina in rutinas:
+                nombre, descripcion = (
+                    self._obtener_textos_rutina(rutina)
+                )
+
+                es_rutina_cardio = (
+                    "QUEMA" in nombre
+                    or "CARDIO" in nombre
+                    or "GRASA" in descripcion
+                )
+
+                if es_rutina_cardio:
+                    self._registrar_log(
+                        self._identificador_cliente(cliente),
+                        "SUGERENCIA_RUTINA",
+                        "CARDIO_QUEMA_GRASA",
+                    )
+                    return rutina
+
+        palabras_fuerza = (
+            "MUSCULO",
+            "HIPERTROFIA",
+            "FUERZA",
+            "VOLUMEN",
+        )
+
+        if any(
+            palabra in objetivo_normalizado
+            for palabra in palabras_fuerza
+        ):
+            for rutina in rutinas:
+                nombre, _ = (
+                    self._obtener_textos_rutina(rutina)
+                )
+
+                es_rutina_fuerza = (
+                    "FUERZA" in nombre
+                    or "HIPERTROFIA" in nombre
+                )
+
+                if es_rutina_fuerza:
+                    self._registrar_log(
+                        self._identificador_cliente(cliente),
+                        "SUGERENCIA_RUTINA",
+                        "FUERZA_HIPERTROFIA",
+                    )
+                    return rutina
+
+        rutina_default = rutinas[0]
+
+        self._registrar_log(
+            self._identificador_cliente(cliente),
+            "SUGERENCIA_RUTINA",
+            "DEFAULT",
+        )
+
         return rutina_default
 
-    def calcular_diferencia_peso_mensual(self, id_cliente: int) -> Decimal:
+    def calcular_diferencia_peso_mensual(
+        self,
+        id_cliente: int,
+    ) -> Decimal:
         """
-        Calcula la diferencia de peso entre los dos últimos registros mensuales.
+        Calcula la diferencia de peso entre los dos últimos
+        registros del historial.
 
-        Args:
-            id_cliente (int): ID del cliente.
+        Resultado positivo:
+            El cliente aumentó de peso.
 
-        Returns:
-            Decimal: Diferencia de peso (actual - anterior). Positivo = aumento.
+        Resultado negativo:
+            El cliente disminuyó de peso.
         """
-        historial = self.control_progreso.consultar_progreso(id_cliente)
+        historial = (
+            self.control_progreso.consultar_progreso(
+                id_cliente
+            )
+        )
+
         if not historial or len(historial) < 2:
             self._registrar_log(
                 f"CLIENTE_{id_cliente}",
                 "CALCULO_DIFERENCIA_PESO",
-                "HISTORIAL_INSUFICIENTE"
+                "HISTORIAL_INSUFICIENTE",
             )
             return Decimal("0.0")
 
-        # Los objetos ya vienen ordenados por fecha descendente (más reciente primero)
-        reg_actual = historial[0]
-        reg_anterior = historial[1]
+        registro_actual = historial[0]
+        registro_anterior = historial[1]
 
-        # Manejar tanto dicts como objetos ProgresoMensual
-        if isinstance(reg_actual, dict):
-            peso_actual = Decimal(str(reg_actual.get("peso_registrado", 0)))
-        elif isinstance(reg_actual, ProgresoMensual):
-            peso_actual = Decimal(str(reg_actual.peso))
-        else:
-            raise TypeError("El historial debe contener objetos ProgresoMensual o dicts.")
+        peso_actual = self._obtener_peso(
+            registro_actual
+        )
 
-        if isinstance(reg_anterior, dict):
-            peso_anterior = Decimal(str(reg_anterior.get("peso_registrado", 0)))
-        elif isinstance(reg_anterior, ProgresoMensual):
-            peso_anterior = Decimal(str(reg_anterior.peso))
-        else:
-            raise TypeError("El historial debe contener objetos ProgresoMensual o dicts.")
+        peso_anterior = self._obtener_peso(
+            registro_anterior
+        )
 
         diferencia = peso_actual - peso_anterior
+
         self._registrar_log(
             f"CLIENTE_{id_cliente}",
             "CALCULO_DIFERENCIA_PESO",
-            f"DIF: {diferencia:.1f}"
+            f"DIF: {diferencia:.1f}",
         )
+
         return diferencia
 
     def emitir_reporte_pdf_cliente(
         self,
         cliente: Union[Cliente, int],
-        ruta_archivo: Optional[str] = None
+        ruta_archivo: Optional[str] = None,
     ) -> Optional[str]:
         """
         Genera un reporte PDF del progreso de un cliente.
-
-        Args:
-            cliente (Union[Cliente, int]): Objeto Cliente o su ID.
-            ruta_archivo (str, optional): Ruta donde guardar el PDF.
-
-        Returns:
-            str: Ruta del archivo generado, o None si falla.
         """
-        # Obtener el objeto Cliente si se pasó un ID
-        if isinstance(cliente, int):
-            cliente_obj = self.control_clientes.buscar_por_id(cliente)
-            if cliente_obj is None:
-                self._registrar_log(
-                    f"ID_{cliente}",
-                    "REPORTE_PDF_ERROR",
-                    "CLIENTE_NO_ENCONTRADO"
-                )
-                return None
-        else:
-            cliente_obj = cliente
+        cliente_obj = self._obtener_cliente(cliente)
+
+        if cliente_obj is None:
+            identificador = (
+                f"ID_{cliente}"
+                if isinstance(cliente, int)
+                else "CLIENTE_DESCONOCIDO"
+            )
+
+            self._registrar_log(
+                identificador,
+                "REPORTE_PDF_ERROR",
+                "CLIENTE_NO_ENCONTRADO",
+            )
+
+            return None
+
+        id_cliente = getattr(
+            cliente_obj,
+            "id_usuario",
+            None,
+        )
+
+        if id_cliente is None:
+            raise ValueError(
+                "El cliente no tiene un id_usuario válido."
+            )
+
+        usuario_log = getattr(
+            cliente_obj,
+            "correo_electronico",
+            f"ID_{id_cliente}",
+        )
 
         try:
-            resumen = self.control_progreso.calcular_resumen_cliente(cliente_obj.id_usuario)
-            historial = self.control_progreso.consultar_progreso(cliente_obj.id_usuario)
+            resumen = (
+                self.control_progreso
+                .calcular_resumen_cliente(
+                    id_cliente
+                )
+            )
 
-            ruta_generada = self.generador_pdf.generar_reporte_progreso_cliente(
-                cliente=cliente_obj,
-                resumen_actividad=resumen,
-                historial_progreso=historial,
-                ruta_archivo=ruta_archivo,
+            historial = (
+                self.control_progreso
+                .consultar_progreso(
+                    id_cliente
+                )
+            )
+
+            ruta_generada = (
+                self.generador_pdf
+                .generar_reporte_progreso_cliente(
+                    cliente=cliente_obj,
+                    resumen_actividad=resumen,
+                    historial_progreso=historial,
+                    ruta_archivo=ruta_archivo,
+                )
             )
 
             self._registrar_log(
-                getattr(cliente_obj, "correo_electronico", f"ID_{cliente_obj.id_usuario}"),
+                usuario_log,
                 "REPORTE_PDF_GENERADO",
-                ruta_generada
+                str(ruta_generada),
             )
+
             return ruta_generada
 
-        except Exception as e:
+        except Exception as error:
             self._registrar_log(
-                getattr(cliente_obj, "correo_electronico", f"ID_{cliente_obj.id_usuario}"),
+                usuario_log,
                 "REPORTE_PDF_ERROR",
-                str(e)
+                str(error),
             )
-            raise RuntimeError(f"Error al generar el reporte PDF: {e}") from e
+
+            raise RuntimeError(
+                "Error al generar el reporte PDF: "
+                f"{error}"
+            ) from error
+
+    def _obtener_cliente(
+        self,
+        cliente: Union[Cliente, int],
+    ) -> Optional[Cliente]:
+        """
+        Devuelve un Cliente a partir de un objeto o de un ID.
+        """
+        if isinstance(cliente, int):
+            return self.control_clientes.buscar_por_id(
+                cliente
+            )
+
+        return cliente
+
+    @staticmethod
+    def _identificador_cliente(
+        cliente: Any,
+    ) -> str:
+        """
+        Devuelve el identificador del cliente para los logs.
+        """
+        id_cliente = getattr(
+            cliente,
+            "id_usuario",
+            None,
+        )
+
+        if id_cliente is None:
+            return "CLIENTE"
+
+        return str(id_cliente)
+
+    @staticmethod
+    def _obtener_textos_rutina(
+        rutina: Any,
+    ) -> tuple[str, str]:
+        """
+        Devuelve nombre y descripción de una rutina.
+        """
+        if isinstance(rutina, dict):
+            nombre = rutina.get(
+                "nombre",
+                "",
+            )
+
+            descripcion = rutina.get(
+                "descripcion",
+                "",
+            )
+
+            return (
+                _normalizar_texto(nombre),
+                _normalizar_texto(descripcion),
+            )
+
+        nombre = getattr(
+            rutina,
+            "nombre",
+            "",
+        )
+
+        descripcion = getattr(
+            rutina,
+            "descripcion",
+            "",
+        )
+
+        return (
+            _normalizar_texto(nombre),
+            _normalizar_texto(descripcion),
+        )
+
+    @staticmethod
+    def _obtener_peso(
+        registro: Any,
+    ) -> Decimal:
+        """
+        Obtiene el peso de un registro como Decimal.
+        """
+        if isinstance(registro, dict):
+            peso = registro.get(
+                "peso_registrado",
+                registro.get(
+                    "peso",
+                    0,
+                ),
+            )
+
+            return Decimal(str(peso))
+
+        if isinstance(registro, ProgresoMensual):
+            return Decimal(
+                str(registro.peso)
+            )
+
+        if hasattr(registro, "peso"):
+            return Decimal(
+                str(registro.peso)
+            )
+
+        if hasattr(registro, "peso_registrado"):
+            return Decimal(
+                str(registro.peso_registrado)
+            )
+
+        raise TypeError(
+            "El registro no contiene un peso válido."
+        )

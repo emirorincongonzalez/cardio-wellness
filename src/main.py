@@ -5,143 +5,191 @@ Punto de entrada principal de la aplicación Cardio-Wellness.
 import sys
 from pathlib import Path
 
-# Agregar el root del proyecto al path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.controladores.control_autenticacion import ControlAutenticacion
-from src.controladores.control_clientes import ControlClientes
-from src.controladores.control_rutinas import ControlRutinas
+# Permite ejecutar el proyecto desde la raíz:
+# python -m src.main
+ROOT_PROYECTO = Path(__file__).resolve().parent.parent
+
+if str(ROOT_PROYECTO) not in sys.path:
+    sys.path.insert(0, str(ROOT_PROYECTO))
+
+
+from src.controladores.control_autenticacion import (
+    ControlAutenticacion,
+)
+from src.controladores.control_clientes import (
+    ControlClientes,
+)
+from src.controladores.control_ejercicios import (
+    ControlEjercicios,
+)
+from src.controladores.control_progreso import (
+    ControlProgreso,
+)
+from src.controladores.control_rutinas import (
+    ControlRutinas,
+)
+from src.controladores.control_sesiones import (
+    ControlSesiones,
+)
+
+from src.interfaz.interfaz_login import InterfazLogin
+
+from src.persistencia.asignacion_rutina_dao import (
+    AsignacionRutinaDAO,
+)
+from src.persistencia.cliente_dao import ClienteDAO
+from src.persistencia.ejercicio_dao import EjercicioDAO
+from src.persistencia.progreso_mensual_dao import (
+    ProgresoMensualDAO,
+)
+from src.persistencia.rutina_dao import RutinaDAO
+from src.persistencia.sesion_entrenamiento_dao import (
+    SesionEntrenamientoDAO,
+)
+from src.persistencia.usuario_dao import UsuarioDAO
+
 from src.persistencia.conexion_bd import ConexionBD
 
 
-def inicializar_sistema():
+def inicializar_sistema() -> dict:
     """
-    Inicializa el sistema Cardio-Wellness.
-    
-    Returns:
-        dict: Diccionario con los controladores inicializados
+    Inicializa la conexión, los DAO y los controladores.
     """
     print("=" * 60)
-    print("Sistema Cardio-Wellness - Gestión de Rutinas")
+    print("Sistema Cardio-Wellness - Gestion de Rutinas")
     print("=" * 60)
-    
-    # Inicializar conexión a BD
+
+    bd = ConexionBD.obtener_instancia()
+
     try:
-        bd = ConexionBD.obtener_instancia()
         bd.abrir_conexion()
-        print("✓ Conexión a base de datos inicializada")
-        
-        # Verificar integridad
+        print("Conexion a base de datos inicializada")
+
         if bd.verificar_integridad():
-            print("✓ Integridad de la base de datos: OK")
+            print("Integridad de la base de datos: OK")
         else:
-            print("⚠ Advertencia: Verificación de integridad fallida")
-    except Exception as e:
-        print(f"✗ Error al conectar a la base de datos: {e}")
-        raise
-    
-    # Inicializar controladores
-    try:
-        control_auth = ControlAutenticacion()
-        control_clientes = ControlClientes()
-        control_rutinas = ControlRutinas()
-        
-        print("✓ Sistema inicializado correctamente")
-        print("=" * 60)
-        
-        return {
+            print(
+                "Advertencia: verificacion de integridad "
+                "fallida"
+            )
+
+        # Crear los DAO.
+        rutina_dao = RutinaDAO()
+        asignacion_dao = AsignacionRutinaDAO()
+        usuario_dao = UsuarioDAO()
+        cliente_dao = ClienteDAO()
+        ejercicio_dao = EjercicioDAO()
+        sesion_dao = SesionEntrenamientoDAO()
+        progreso_dao = ProgresoMensualDAO()
+
+        # Crear los controladores.
+        control_auth = ControlAutenticacion(
+            usuario_dao
+        )
+
+        control_clientes = ControlClientes(
+            cliente_dao
+        )
+
+        control_ejercicios = ControlEjercicios(
+            ejercicio_dao
+        )
+
+        control_rutinas = ControlRutinas(
+            rutina_dao=rutina_dao,
+            asignacion_dao=asignacion_dao,
+        )
+
+        control_sesiones = ControlSesiones(
+            sesion_dao
+        )
+
+        # IMPORTANTE:
+        # ControlProgreso necesita ambos DAO.
+        control_progreso = ControlProgreso(
+            progreso_dao=progreso_dao,
+            sesion_dao=sesion_dao,
+        )
+
+        # Verificación temporal de las dependencias.
+        print(
+            "DAO de progreso:",
+            type(
+                control_progreso.progreso_dao
+            ).__name__,
+        )
+
+        print(
+            "DAO de sesiones:",
+            type(
+                control_progreso.sesion_dao
+            ).__name__,
+        )
+
+        controladores = {
             "control_auth": control_auth,
             "control_clientes": control_clientes,
+            "control_ejercicios": control_ejercicios,
             "control_rutinas": control_rutinas,
+            "control_sesiones": control_sesiones,
+            "control_progreso": control_progreso,
         }
-    except Exception as e:
-        print(f"✗ Error al inicializar el sistema: {e}")
+
+        print("Controladores inicializados correctamente")
+        print("=" * 60)
+
+        return controladores
+
+    except Exception as error:
+        print(
+            f"Error al inicializar el sistema: {error}"
+        )
         raise
 
 
-def main():
-    """Función principal de la aplicación."""
+def iniciar_interfaz(controladores: dict) -> None:
+    """
+    Crea y ejecuta la ventana de inicio de sesión.
+    """
+    control_auth = controladores["control_auth"]
+
+    app = InterfazLogin(
+        control_autenticacion=control_auth,
+        controladores=controladores,
+    )
+
+    app.mainloop()
+
+
+def main() -> None:
+    """
+    Función principal de la aplicación.
+    """
+    bd = None
+
     try:
-        controles = inicializar_sistema()
-        control_auth = controles["control_auth"]
-        control_clientes = controles["control_clientes"]
-        control_rutinas = controles["control_rutinas"]
-        
-        # Menú de consola (backend only)
-        print("\n=== MENÚ PRINCIPAL ===")
-        print("1. Iniciar sesión")
-        print("2. Registrar cliente")
-        print("3. Ver rutinas disponibles")
-        print("4. Salir")
-        
-        while True:
-            opcion = input("\nSeleccione una opción: ").strip()
-            
-            if opcion == "1":
-                correo = input("Correo: ").strip()
-                contrasenia = input("Contraseña: ").strip()
-                
-                usuario = control_auth.iniciar_sesion(correo, contrasenia)
-                
-                if usuario:
-                    print(f"✓ Bienvenido, {usuario.nombre} {usuario.apellido}")
-                else:
-                    print("✗ Credenciales inválidas")
-            
-            elif opcion == "2":
-                print("\n=== REGISTRAR CLIENTE ===")
-                nombre = input("Nombre: ").strip()
-                apellido = input("Apellido: ").strip()
-                correo = input("Correo: ").strip()
-                contrasenia = input("Contraseña: ").strip()
-                edad = int(input("Edad: ").strip())
-                peso = float(input("Peso (kg): ").strip())
-                altura = float(input("Altura (m): ").strip())
-                objetivo = input("Objetivo: ").strip()
-                
-                try:
-                    cliente = control_clientes.registrar_cliente(
-                        nombre=nombre,
-                        apellido=apellido,
-                        correo_electronico=correo,
-                        contrasenia_plana=contrasenia,
-                        edad=edad,
-                        peso=peso,
-                        altura=altura,
-                        objetivo=objetivo,
-                    )
-                    print(f"✓ Cliente registrado: {cliente.nombre} {cliente.apellido}")
-                except Exception as e:
-                    print(f"✗ Error: {e}")
-            
-            elif opcion == "3":
-                print("\n=== RUTINAS DISPONIBLES ===")
-                rutinas = control_rutinas.listar()
-                
-                if not rutinas:
-                    print("No hay rutinas disponibles")
-                else:
-                    for i, rutina in enumerate(rutinas, 1):
-                        nivel = rutina.nivel.value if hasattr(rutina.nivel, 'value') else str(rutina.nivel)
-                        print(f"{i}. {rutina.nombre} - {rutina.objetivo} ({nivel})")
-            
-            elif opcion == "4":
-                print("\nSaliendo...")
-                break
-            
-            else:
-                print("Opción inválida. Intente nuevamente.")
-        
+        controladores = inicializar_sistema()
+        bd = ConexionBD.obtener_instancia()
+
+        iniciar_interfaz(controladores)
+
     except KeyboardInterrupt:
-        print("\n\nAplicación terminada por el usuario")
-    except Exception as e:
-        print(f"\n✗ Error crítico: {e}")
+        print("\nAplicacion terminada por el usuario")
+
+    except Exception as error:
+        print(
+            f"\nError critico: {error}"
+        )
         sys.exit(1)
+
     finally:
-        # Cerrar conexión
         try:
-            bd = ConexionBD.obtener_instancia()
-            bd.cerrar_conexion()
+            if bd is not None:
+                bd.cerrar_conexion()
+                print(
+                    "Conexion a base de datos cerrada"
+                )
         except Exception:
             pass
 

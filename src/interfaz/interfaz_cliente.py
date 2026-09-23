@@ -3,7 +3,6 @@ from typing import Any, Optional
 import tkinter as tk
 from tkinter import ttk
 
-
 from src.controladores.control_progreso import (
     ControlProgreso,
 )
@@ -24,15 +23,21 @@ from src.modelos.cliente import Cliente
 
 class InterfazCliente(tk.Tk):
     """
-    Ventana principal del cliente de Cardio-Wellness.
+    Ventana principal del cliente de Cardio Wellness.
     """
 
     def __init__(
         self,
         cliente_actual: Cliente,
-        control_rutinas: Optional[ControlRutinas] = None,
-        control_sesiones: Optional[ControlSesiones] = None,
-        control_progreso: Optional[ControlProgreso] = None,
+        control_rutinas: Optional[
+            ControlRutinas
+        ] = None,
+        control_sesiones: Optional[
+            ControlSesiones
+        ] = None,
+        control_progreso: Optional[
+            ControlProgreso
+        ] = None,
         control_autenticacion: Optional[Any] = None,
         controladores: Optional[dict] = None,
     ) -> None:
@@ -40,6 +45,19 @@ class InterfazCliente(tk.Tk):
         Inicializa la ventana del cliente.
         """
         super().__init__()
+
+        if cliente_actual is None:
+            raise ValueError(
+                "Debe existir un cliente autenticado."
+            )
+
+        if not isinstance(
+            cliente_actual,
+            Cliente,
+        ):
+            raise TypeError(
+                "El usuario autenticado debe ser Cliente."
+            )
 
         if controladores is not None:
             control_rutinas = controladores.get(
@@ -57,54 +75,79 @@ class InterfazCliente(tk.Tk):
                 control_progreso,
             )
 
-            control_autenticacion = controladores.get(
-                "control_auth",
-                control_autenticacion,
+            control_autenticacion = (
+                controladores.get(
+                    "control_auth",
+                    controladores.get(
+                        "control_autenticacion",
+                        control_autenticacion,
+                    ),
+                )
             )
 
         if control_rutinas is None:
             raise ValueError(
-                "InterfazCliente requiere un "
-                "ControlRutinas inicializado."
+                (
+                    "InterfazCliente requiere un "
+                    "ControlRutinas inicializado."
+                )
             )
 
         if control_sesiones is None:
             raise ValueError(
-                "InterfazCliente requiere un "
-                "ControlSesiones inicializado."
+                (
+                    "InterfazCliente requiere un "
+                    "ControlSesiones inicializado."
+                )
             )
 
         if control_progreso is None:
             raise ValueError(
-                "InterfazCliente requiere un "
-                "ControlProgreso inicializado."
+                (
+                    "InterfazCliente requiere un "
+                    "ControlProgreso inicializado."
+                )
             )
 
         if control_autenticacion is None:
             raise ValueError(
-                "InterfazCliente requiere un "
-                "ControlAutenticacion inicializado."
+                (
+                    "InterfazCliente requiere un "
+                    "ControlAutenticacion inicializado."
+                )
             )
 
         self._cliente_actual = cliente_actual
         self._control_rutinas = control_rutinas
         self._control_sesiones = control_sesiones
         self._control_progreso = control_progreso
-        self._control_autenticacion = control_autenticacion
+        self._control_autenticacion = (
+            control_autenticacion
+        )
 
-        self._controladores = controladores or {
-            "control_auth": control_autenticacion,
-            "control_rutinas": control_rutinas,
-            "control_sesiones": control_sesiones,
-            "control_progreso": control_progreso,
-        }
+        self._controladores = (
+            controladores
+            if controladores is not None
+            else {
+                "control_auth": (
+                    control_autenticacion
+                ),
+                "control_autenticacion": (
+                    control_autenticacion
+                ),
+                "control_rutinas": control_rutinas,
+                "control_sesiones": control_sesiones,
+                "control_progreso": control_progreso,
+            }
+        )
 
         self.title(
             "Cardio Wellness - Cliente: "
             f"{cliente_actual.nombre}"
         )
 
-        self.geometry("900x700")
+        self.geometry("1050x780")
+        self.minsize(900, 650)
         self.resizable(True, True)
 
         self.protocol(
@@ -144,7 +187,7 @@ class InterfazCliente(tk.Tk):
 
     def mostrarInicio(self) -> None:
         """
-        Construye la pantalla principal del cliente.
+        Construye la pantalla principal.
         """
         frame_top = ttk.Frame(
             self,
@@ -156,12 +199,15 @@ class InterfazCliente(tk.Tk):
         )
 
         nombre_cliente = (
-            self._cliente_actual.obtener_nombre_completo()
+            self._cliente_actual
+            .obtener_nombre_completo()
         )
 
         ttk.Label(
             frame_top,
-            text=f"Bienvenido, {nombre_cliente}",
+            text=(
+                f"Bienvenido, {nombre_cliente}"
+            ),
             font=("Helvetica", 12, "bold"),
         ).pack(
             side="left",
@@ -169,11 +215,13 @@ class InterfazCliente(tk.Tk):
 
         ttk.Button(
             frame_top,
-            text="Cerrar Sesion",
+            text="Cerrar sesión",
             command=self.cerrarSesion,
         ).pack(
             side="right",
         )
+
+        self._crear_datos_personales()
 
         self._notebook = ttk.Notebook(self)
 
@@ -188,6 +236,165 @@ class InterfazCliente(tk.Tk):
         self.registrarSesion()
         self.consultarProgreso()
 
+    def _crear_datos_personales(self) -> None:
+        """
+        Muestra los datos personales del cliente.
+
+        No incluye descripción.
+        """
+        frame = ttk.LabelFrame(
+            self,
+            text="Datos personales",
+            padding=10,
+        )
+
+        frame.pack(
+            fill="x",
+            padx=10,
+            pady=(0, 5),
+        )
+
+        cliente = self._cliente_actual
+
+        nombre = (
+            cliente.obtener_nombre_completo()
+        )
+
+        correo = getattr(
+            cliente,
+            "correo_electronico",
+            "",
+        )
+
+        edad = getattr(
+            cliente,
+            "edad",
+            "",
+        )
+
+        altura = getattr(
+            cliente,
+            "altura",
+            "",
+        )
+
+        genero = getattr(
+            cliente,
+            "genero",
+            "PREFIERO NO DECIRLO",
+        )
+
+        peso = getattr(
+            cliente,
+            "peso",
+            "",
+        )
+
+        peso_objetivo = getattr(
+            cliente,
+            "peso_objetivo",
+            "",
+        )
+
+        objetivo = getattr(
+            cliente,
+            "objetivo",
+            "",
+        )
+
+        datos = (
+            (
+                "Nombre:",
+                str(nombre),
+            ),
+            (
+                "Correo:",
+                str(correo),
+            ),
+            (
+                "Edad:",
+                f"{edad} años",
+            ),
+            (
+                "Altura:",
+                f"{self._formatear_decimal(altura)} m",
+            ),
+            (
+                "Género:",
+                str(genero),
+            ),
+            (
+                "Peso actual:",
+                f"{self._formatear_decimal(peso)} kg",
+            ),
+            (
+                "Peso objetivo:",
+                (
+                    f"{self._formatear_decimal(
+                        peso_objetivo
+                    )} kg"
+                ),
+            ),
+            (
+                "Objetivo:",
+                str(objetivo),
+            ),
+        )
+
+        for columna in range(4):
+            frame.columnconfigure(
+                columna,
+                weight=1,
+            )
+
+        for indice, (etiqueta, valor) in enumerate(
+            datos
+        ):
+            fila = indice // 4
+            columna = (indice % 4) * 2
+
+            ttk.Label(
+                frame,
+                text=etiqueta,
+                font=("Helvetica", 9, "bold"),
+            ).grid(
+                row=fila,
+                column=columna,
+                sticky="w",
+                padx=(5, 2),
+                pady=4,
+            )
+
+            ttk.Label(
+                frame,
+                text=valor,
+            ).grid(
+                row=fila,
+                column=columna + 1,
+                sticky="w",
+                padx=(2, 12),
+                pady=4,
+            )
+
+    @staticmethod
+    def _formatear_decimal(
+        valor: Any,
+    ) -> str:
+        """
+        Formatea valores numéricos.
+        """
+        if valor is None or valor == "":
+            return "-"
+
+        try:
+            return f"{float(valor):.2f}"
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return str(valor)
+
     def consultarRutinaActiva(self) -> None:
         """
         Muestra la rutina activa del cliente.
@@ -199,12 +406,12 @@ class InterfazCliente(tk.Tk):
 
         self._notebook.add(
             pestania_rutina,
-            text="Mi Rutina",
+            text="Mi rutina",
         )
 
         ttk.Label(
             pestania_rutina,
-            text="Rutina Activa",
+            text="Rutina activa",
             font=("Helvetica", 12, "bold"),
         ).pack(
             anchor="w",
@@ -223,7 +430,7 @@ class InterfazCliente(tk.Tk):
         columnas = (
             "Ejercicio",
             "Tipo",
-            "Duracion",
+            "Duración",
             "Intensidad",
         )
 
@@ -234,6 +441,13 @@ class InterfazCliente(tk.Tk):
             height=10,
         )
 
+        anchos = {
+            "Ejercicio": 240,
+            "Tipo": 180,
+            "Duración": 140,
+            "Intensidad": 160,
+        }
+
         for columna in columnas:
             self._tree_ejercicios.heading(
                 columna,
@@ -242,7 +456,8 @@ class InterfazCliente(tk.Tk):
 
             self._tree_ejercicios.column(
                 columna,
-                width=160,
+                width=anchos[columna],
+                minwidth=100,
                 anchor="center",
             )
 
@@ -256,25 +471,24 @@ class InterfazCliente(tk.Tk):
 
     def consultarProgreso(self) -> None:
         """
-        Muestra la pestaña de progreso.
+        Muestra el progreso del cliente.
         """
         pestania_progreso = InterfazProgreso(
-            self._notebook,
-            self._control_progreso,
-            self._cliente_actual,
+            master=self._notebook,
+            control_progreso=(
+                self._control_progreso
+            ),
+            cliente=self._cliente_actual,
         )
 
         self._notebook.add(
             pestania_progreso,
-            text="Mi Progreso",
+            text="Mi progreso",
         )
 
     def registrarSesion(self) -> None:
         """
-        Muestra el formulario para registrar una sesión.
-
-        El formulario solo se habilita cuando el cliente
-        tiene una rutina activa.
+        Muestra el formulario para registrar sesión.
         """
         try:
             asignacion = (
@@ -297,16 +511,18 @@ class InterfazCliente(tk.Tk):
                 self._mostrar_error_rutina()
                 return
 
-            pestania_sesion = InterfazRegistroSesion(
-                self._notebook,
-                self._control_sesiones,
-                self._cliente_actual.id_usuario,
-                id_rutina,
+            pestania_sesion = (
+                InterfazRegistroSesion(
+                    self._notebook,
+                    self._control_sesiones,
+                    self._cliente_actual.id_usuario,
+                    id_rutina,
+                )
             )
 
             self._notebook.add(
                 pestania_sesion,
-                text="Registrar Sesion",
+                text="Registrar sesión",
             )
 
         except Exception as error:
@@ -329,7 +545,7 @@ class InterfazCliente(tk.Tk):
 
             self._notebook.add(
                 pestania_sesion,
-                text="Registrar Sesion",
+                text="Registrar sesión",
             )
 
     def cerrarSesion(self) -> None:
@@ -338,9 +554,11 @@ class InterfazCliente(tk.Tk):
         """
         try:
             self._control_sesiones._registrar_log(
-                self._cliente_actual.correo_electronico,
+                self._cliente_actual
+                .correo_electronico,
                 "LOGOUT",
             )
+
         except Exception:
             pass
 
@@ -375,8 +593,8 @@ class InterfazCliente(tk.Tk):
             if asignacion is None:
                 self._lbl_rutina_nombre.config(
                     text=(
-                        "No tienes una rutina asignada "
-                        "actualmente."
+                        "No tienes una rutina "
+                        "asignada actualmente."
                     )
                 )
                 return
@@ -388,8 +606,8 @@ class InterfazCliente(tk.Tk):
             if id_rutina is None:
                 self._lbl_rutina_nombre.config(
                     text=(
-                        "La asignacion no contiene "
-                        "una rutina valida."
+                        "La asignación no contiene "
+                        "una rutina válida."
                     )
                 )
                 return
@@ -403,7 +621,7 @@ class InterfazCliente(tk.Tk):
             if rutina is None:
                 self._lbl_rutina_nombre.config(
                     text=(
-                        "No se encontro la rutina activa."
+                        "No se encontró la rutina activa."
                     )
                 )
                 return
@@ -508,7 +726,7 @@ class InterfazCliente(tk.Tk):
 
     def _mostrar_sin_rutina_activa(self) -> None:
         """
-        Muestra un mensaje cuando no existe rutina activa.
+        Muestra un mensaje sin rutina activa.
         """
         pestania_sesion = ttk.Frame(
             self._notebook,
@@ -518,7 +736,7 @@ class InterfazCliente(tk.Tk):
         ttk.Label(
             pestania_sesion,
             text=(
-                "No puedes registrar una sesion "
+                "No puedes registrar una sesión "
                 "porque no tienes una rutina activa "
                 "asignada."
             ),
@@ -531,13 +749,12 @@ class InterfazCliente(tk.Tk):
 
         self._notebook.add(
             pestania_sesion,
-            text="Registrar Sesion",
+            text="Registrar sesión",
         )
 
     def _mostrar_error_rutina(self) -> None:
         """
-        Muestra un mensaje cuando la asignación no contiene
-        un ID de rutina válido.
+        Muestra un error de rutina inválida.
         """
         pestania_sesion = ttk.Frame(
             self._notebook,
@@ -547,8 +764,8 @@ class InterfazCliente(tk.Tk):
         ttk.Label(
             pestania_sesion,
             text=(
-                "La asignacion activa no contiene "
-                "una rutina valida."
+                "La asignación activa no contiene "
+                "una rutina válida."
             ),
             foreground="red",
             wraplength=600,
@@ -559,7 +776,7 @@ class InterfazCliente(tk.Tk):
 
         self._notebook.add(
             pestania_sesion,
-            text="Registrar Sesion",
+            text="Registrar sesión",
         )
 
     @staticmethod
@@ -567,12 +784,13 @@ class InterfazCliente(tk.Tk):
         asignacion: Any,
     ) -> Optional[int]:
         """
-        Obtiene id_rutina desde un objeto o diccionario.
+        Obtiene id_rutina desde objeto o diccionario.
         """
         if isinstance(asignacion, dict):
             valor = asignacion.get(
                 "id_rutina"
             )
+
         else:
             valor = getattr(
                 asignacion,
@@ -585,6 +803,7 @@ class InterfazCliente(tk.Tk):
 
         try:
             return int(valor)
+
         except (
             TypeError,
             ValueError,

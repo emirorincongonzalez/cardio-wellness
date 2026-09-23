@@ -6,12 +6,12 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Optional
 
-
 from psycopg2 import IntegrityError
 from psycopg2.extras import RealDictCursor
 
-
-from src.modelos.progreso_mensual import ProgresoMensual
+from src.modelos.progreso_mensual import (
+    ProgresoMensual,
+)
 from src.persistencia.conexion_bd import ConexionBD
 
 
@@ -28,7 +28,10 @@ class ProgresoMensualDAO:
         progreso: ProgresoMensual,
     ) -> ProgresoMensual:
         """
-        Inserta o actualiza el progreso del cliente para el mes.
+        Inserta o actualiza el progreso mensual.
+
+        Solo puede existir un registro por cliente
+        y por mes.
         """
         self._validar_progreso(progreso)
 
@@ -63,96 +66,66 @@ class ProgresoMensualDAO:
             ) as cursor:
                 cursor.execute(
                     """
-                    SELECT id_progreso
-                    FROM progreso_mensual
-                    WHERE id_cliente = %s
-                      AND mes = %s
-                    LIMIT 1
+                    INSERT INTO progreso_mensual (
+                        id_cliente,
+                        mes,
+                        peso,
+                        sesiones_completadas,
+                        sesiones_planificadas,
+                        porcentaje_cumplimiento
+                    )
+                    VALUES (
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s
+                    )
+                    ON CONFLICT (
+                        id_cliente,
+                        mes
+                    )
+                    DO UPDATE SET
+                        peso = EXCLUDED.peso,
+                        sesiones_completadas =
+                            EXCLUDED.sesiones_completadas,
+                        sesiones_planificadas =
+                            EXCLUDED.sesiones_planificadas,
+                        porcentaje_cumplimiento =
+                            EXCLUDED.porcentaje_cumplimiento
+                    RETURNING
+                        id_progreso,
+                        id_cliente,
+                        mes,
+                        peso,
+                        sesiones_completadas,
+                        sesiones_planificadas,
+                        porcentaje_cumplimiento
                     """,
                     (
                         progreso.id_cliente,
                         mes,
+                        peso,
+                        sesiones_completadas,
+                        sesiones_planificadas,
+                        porcentaje,
                     ),
                 )
-
-                existente = cursor.fetchone()
-
-                if existente is None:
-                    cursor.execute(
-                        """
-                        INSERT INTO progreso_mensual (
-                            id_cliente,
-                            mes,
-                            peso,
-                            sesiones_completadas,
-                            sesiones_planificadas,
-                            porcentaje_cumplimiento
-                        )
-                        VALUES (
-                            %s,
-                            %s,
-                            %s,
-                            %s,
-                            %s,
-                            %s
-                        )
-                        RETURNING
-                            id_progreso,
-                            id_cliente,
-                            mes,
-                            peso,
-                            sesiones_completadas,
-                            sesiones_planificadas,
-                            porcentaje_cumplimiento
-                        """,
-                        (
-                            progreso.id_cliente,
-                            mes,
-                            peso,
-                            sesiones_completadas,
-                            sesiones_planificadas,
-                            porcentaje,
-                        ),
-                    )
-
-                else:
-                    cursor.execute(
-                        """
-                        UPDATE progreso_mensual
-                        SET
-                            peso = %s,
-                            sesiones_completadas = %s,
-                            sesiones_planificadas = %s,
-                            porcentaje_cumplimiento = %s
-                        WHERE id_progreso = %s
-                        RETURNING
-                            id_progreso,
-                            id_cliente,
-                            mes,
-                            peso,
-                            sesiones_completadas,
-                            sesiones_planificadas,
-                            porcentaje_cumplimiento
-                        """,
-                        (
-                            peso,
-                            sesiones_completadas,
-                            sesiones_planificadas,
-                            porcentaje,
-                            existente["id_progreso"],
-                        ),
-                    )
 
                 fila = cursor.fetchone()
 
             if fila is None:
                 raise RuntimeError(
-                    "No se pudo recuperar el progreso guardado."
+                    "No se pudo recuperar el progreso "
+                    "guardado."
                 )
 
             self._bd._conexion.commit()
 
-            return self._crear_progreso_desde_fila(fila)
+            return self._crear_progreso_desde_fila(
+                fila
+            )
 
         except IntegrityError as error:
             self._bd._conexion.rollback()
@@ -163,7 +136,8 @@ class ProgresoMensualDAO:
                 ) from error
 
             raise ValueError(
-                "No se pudo guardar el progreso mensual."
+                "No se pudo guardar el progreso "
+                "mensual."
             ) from error
 
         except Exception:
@@ -177,6 +151,11 @@ class ProgresoMensualDAO:
         """
         Busca progreso por ID.
         """
+        self._validar_id(
+            id_progreso,
+            "El ID del progreso",
+        )
+
         self._bd.abrir_conexion()
 
         try:
@@ -204,7 +183,9 @@ class ProgresoMensualDAO:
             if fila is None:
                 return None
 
-            return self._crear_progreso_desde_fila(fila)
+            return self._crear_progreso_desde_fila(
+                fila
+            )
 
         except Exception:
             raise
@@ -216,6 +197,11 @@ class ProgresoMensualDAO:
         """
         Lista el historial de progreso de un cliente.
         """
+        self._validar_id(
+            id_cliente,
+            "El ID del cliente",
+        )
+
         self._bd.abrir_conexion()
 
         try:
@@ -242,7 +228,9 @@ class ProgresoMensualDAO:
                 filas = cursor.fetchall()
 
             return [
-                self._crear_progreso_desde_fila(fila)
+                self._crear_progreso_desde_fila(
+                    fila
+                )
                 for fila in filas
             ]
 
@@ -341,7 +329,9 @@ class ProgresoMensualDAO:
 
             self._bd._conexion.commit()
 
-            return self._crear_progreso_desde_fila(fila)
+            return self._crear_progreso_desde_fila(
+                fila
+            )
 
         except Exception:
             self._bd._conexion.rollback()
@@ -354,6 +344,11 @@ class ProgresoMensualDAO:
         """
         Elimina un progreso por ID.
         """
+        self._validar_id(
+            id_progreso,
+            "El ID del progreso",
+        )
+
         self._bd.abrir_conexion()
 
         try:
@@ -381,11 +376,13 @@ class ProgresoMensualDAO:
         fila,
     ) -> ProgresoMensual:
         """
-        Convierte una fila de PostgreSQL a ProgresoMensual.
+        Convierte una fila tipo diccionario
+        en ProgresoMensual.
         """
         if not hasattr(fila, "keys"):
             raise TypeError(
-                "La fila de progreso debe ser tipo diccionario."
+                "La fila de progreso debe ser "
+                "tipo diccionario."
             )
 
         datos = dict(fila)
@@ -454,12 +451,34 @@ class ProgresoMensualDAO:
         """
         Valida los datos antes de guardar.
         """
+        if not isinstance(
+            progreso,
+            ProgresoMensual,
+        ):
+            raise TypeError(
+                "Debe proporcionar un objeto "
+                "ProgresoMensual."
+            )
+
         if progreso.id_cliente is None:
             raise ValueError(
                 "El progreso debe tener un cliente."
             )
 
-        if int(progreso.id_cliente) <= 0:
+        try:
+            id_cliente = int(
+                progreso.id_cliente
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ) as error:
+            raise ValueError(
+                "El ID del cliente no es válido."
+            ) from error
+
+        if id_cliente <= 0:
             raise ValueError(
                 "El ID del cliente debe ser positivo."
             )
@@ -474,9 +493,18 @@ class ProgresoMensualDAO:
                 "El progreso debe tener un peso."
             )
 
-        peso = Decimal(
-            str(progreso.peso)
-        )
+        try:
+            peso = Decimal(
+                str(progreso.peso)
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ) as error:
+            raise ValueError(
+                "El peso no es válido."
+            ) from error
 
         if peso <= Decimal("0"):
             raise ValueError(
@@ -485,6 +513,42 @@ class ProgresoMensualDAO:
 
         if peso >= Decimal("1000"):
             raise ValueError(
-                "El peso supera el máximo permitido "
-                "por NUMERIC(5,2)."
+                "El peso supera el máximo permitido."
+            )
+
+        sesiones_completadas = int(
+            progreso.sesiones_completadas or 0
+        )
+
+        sesiones_planificadas = int(
+            progreso.sesiones_planificadas or 0
+        )
+
+        if sesiones_completadas < 0:
+            raise ValueError(
+                "Las sesiones completadas no pueden "
+                "ser negativas."
+            )
+
+        if sesiones_planificadas < 0:
+            raise ValueError(
+                "Las sesiones planificadas no pueden "
+                "ser negativas."
+            )
+
+    @staticmethod
+    def _validar_id(
+        valor: int,
+        nombre: str,
+    ) -> None:
+        """
+        Valida un ID positivo.
+        """
+        if (
+            not isinstance(valor, int)
+            or isinstance(valor, bool)
+            or valor <= 0
+        ):
+            raise ValueError(
+                f"{nombre} debe ser positivo."
             )

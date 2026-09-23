@@ -4,7 +4,9 @@ from typing import List, Optional, Union
 from src.controladores.control_base import ControlBase
 from src.modelos.cliente import Cliente
 from src.persistencia.cliente_dao import ClienteDAO
-from src.servicios.gestor_seguridad import GestorSeguridad
+from src.servicios.gestor_seguridad import (
+    GestorSeguridad,
+)
 from src.utilidades.logger import (
     log_calculo_diferencia_peso,
     log_consulta_progreso,
@@ -18,18 +20,54 @@ class ControlClientes(ControlBase):
     Controlador para la gestión de clientes.
     """
 
+    GENEROS_VALIDOS = {
+        "HOMBRE",
+        "MUJER",
+        "OTRO",
+        "PREFIERO NO DECIRLO",
+    }
+
     def __init__(
         self,
-        cliente_dao: Optional[ClienteDAO] = None,
+        cliente_dao: Optional[
+            ClienteDAO
+        ] = None,
         ruta_log: str = "logs/LOG_CARDIO.txt",
     ) -> None:
-        super().__init__(ruta_log=ruta_log)
+        super().__init__(
+            ruta_log=ruta_log,
+        )
 
         self.cliente_dao = (
             cliente_dao
             if cliente_dao is not None
             else ClienteDAO()
         )
+
+    @classmethod
+    def _normalizar_genero(
+        cls,
+        genero: str,
+    ) -> str:
+        """
+        Normaliza y valida el género.
+        """
+        if not isinstance(genero, str):
+            raise ValueError(
+                "El género debe ser texto."
+            )
+
+        genero_limpio = genero.strip().upper()
+
+        if genero_limpio not in cls.GENEROS_VALIDOS:
+            raise ValueError(
+                (
+                    "El género debe ser HOMBRE, MUJER, "
+                    "OTRO o PREFIERO NO DECIRLO."
+                )
+            )
+
+        return genero_limpio
 
     @staticmethod
     def _validar_datos_registro(
@@ -38,9 +76,25 @@ class ControlClientes(ControlBase):
         correo_electronico: str,
         contrasenia_plana: str,
         edad: int,
-        peso: Union[int, float, Decimal],
-        altura: Union[int, float, Decimal],
+        genero: str,
+        peso: Union[
+            int,
+            float,
+            Decimal,
+        ],
+        altura: Union[
+            int,
+            float,
+            Decimal,
+        ],
         objetivo: str,
+        peso_objetivo: Optional[
+            Union[
+                int,
+                float,
+                Decimal,
+            ]
+        ] = None,
     ) -> None:
         """
         Valida los datos del registro.
@@ -69,7 +123,10 @@ class ControlClientes(ControlBase):
             or not correo_electronico.strip()
         ):
             raise ValueError(
-                "El correo electrónico es obligatorio."
+                (
+                    "El correo electrónico es "
+                    "obligatorio."
+                )
             )
 
         if (
@@ -80,7 +137,10 @@ class ControlClientes(ControlBase):
             or not contrasenia_plana
         ):
             raise ValueError(
-                "La contraseña no puede estar vacía."
+                (
+                    "La contraseña no puede estar "
+                    "vacía."
+                )
             )
 
         if (
@@ -89,14 +149,28 @@ class ControlClientes(ControlBase):
             or edad <= 0
         ):
             raise ValueError(
-                "La edad debe ser un entero mayor "
-                "que cero."
+                (
+                    "La edad debe ser un entero "
+                    "mayor que cero."
+                )
+            )
+
+        if (
+            not isinstance(genero, str)
+            or not genero.strip()
+        ):
+            raise ValueError(
+                "El género es obligatorio."
             )
 
         if (
             not isinstance(
                 peso,
-                (int, float, Decimal),
+                (
+                    int,
+                    float,
+                    Decimal,
+                ),
             )
             or isinstance(peso, bool)
             or peso <= 0
@@ -108,7 +182,11 @@ class ControlClientes(ControlBase):
         if (
             not isinstance(
                 altura,
-                (int, float, Decimal),
+                (
+                    int,
+                    float,
+                    Decimal,
+                ),
             )
             or isinstance(altura, bool)
             or altura <= 0
@@ -125,14 +203,78 @@ class ControlClientes(ControlBase):
                 "El objetivo no puede estar vacío."
             )
 
+        if peso_objetivo is None:
+            peso_objetivo = peso
+
+        if (
+            not isinstance(
+                peso_objetivo,
+                (
+                    int,
+                    float,
+                    Decimal,
+                ),
+            )
+            or isinstance(peso_objetivo, bool)
+            or peso_objetivo <= 0
+        ):
+            raise ValueError(
+                (
+                    "El peso objetivo debe ser "
+                    "mayor que cero."
+                )
+            )
+
+        objetivo_normalizado = (
+            objetivo.strip().lower()
+        )
+
+        if objetivo_normalizado in {
+            "bajar de peso",
+            "bajar peso",
+        }:
+            if peso_objetivo >= peso:
+                raise ValueError(
+                    (
+                        "El peso objetivo debe ser "
+                        "menor que el peso actual."
+                    )
+                )
+
+        elif objetivo_normalizado in {
+            "subir de peso",
+            "subir peso",
+        }:
+            if peso_objetivo <= peso:
+                raise ValueError(
+                    (
+                        "El peso objetivo debe ser "
+                        "mayor que el peso actual."
+                    )
+                )
+
+        elif objetivo_normalizado in {
+            "mantener peso",
+            "mantener",
+        }:
+            if peso_objetivo != peso:
+                raise ValueError(
+                    (
+                        "Para mantener peso, la meta "
+                        "debe ser igual al peso actual."
+                    )
+                )
+
         if not GestorSeguridad.validar_fortaleza_contrasena(
             contrasenia_plana
         ):
             raise ValueError(
-                "La contraseña es muy débil. "
-                "Debe tener al menos 8 caracteres, "
-                "una mayúscula, un número y un "
-                "carácter especial."
+                (
+                    "La contraseña es muy débil. "
+                    "Debe tener al menos 8 caracteres, "
+                    "una mayúscula, un número y un "
+                    "carácter especial."
+                )
             )
 
     def registrar_cliente(
@@ -142,13 +284,30 @@ class ControlClientes(ControlBase):
         correo_electronico: str,
         contrasenia_plana: str,
         edad: int,
-        peso: Union[int, float, Decimal],
-        altura: Union[int, float, Decimal],
+        genero: str,
+        peso: Union[
+            int,
+            float,
+            Decimal,
+        ],
+        altura: Union[
+            int,
+            float,
+            Decimal,
+        ],
         objetivo: str,
         meta: Optional[str] = None,
+        peso_objetivo: Optional[
+            Union[
+                int,
+                float,
+                Decimal,
+            ]
+        ] = None,
     ) -> Cliente:
         """
-        Registra un cliente con hash bcrypt.
+        Registra un cliente con datos personales,
+        físicos y objetivo.
         """
         objetivo_texto = (
             objetivo
@@ -158,6 +317,13 @@ class ControlClientes(ControlBase):
 
         if not objetivo_texto and meta:
             objetivo_texto = meta.strip()
+
+        genero_texto = (
+            self._normalizar_genero(genero)
+        )
+
+        if peso_objetivo is None:
+            peso_objetivo = peso
 
         self._validar_datos_registro(
             nombre=nombre,
@@ -169,12 +335,13 @@ class ControlClientes(ControlBase):
                 contrasenia_plana
             ),
             edad=edad,
+            genero=genero_texto,
             peso=peso,
             altura=altura,
             objetivo=objetivo_texto,
+            peso_objetivo=peso_objetivo,
         )
 
-        # Generar el hash antes de crear Cliente.
         hash_bcrypt = (
             GestorSeguridad.generar_hash(
                 contrasenia_plana
@@ -183,7 +350,11 @@ class ControlClientes(ControlBase):
 
         if (
             not hash_bcrypt.startswith(
-                ("$2a$", "$2b$", "$2y$")
+                (
+                    "$2a$",
+                    "$2b$",
+                    "$2y$",
+                )
             )
             or len(hash_bcrypt) != 60
         ):
@@ -201,14 +372,14 @@ class ControlClientes(ControlBase):
             ),
             contrasenia_hash=hash_bcrypt,
             edad=edad,
+            genero=genero_texto,
             peso=peso,
             altura=altura,
             objetivo=objetivo_texto,
+            peso_objetivo=peso_objetivo,
         )
 
         try:
-            # ClienteDAO.guardar() debe usar el hash
-            # que ya está dentro del objeto Cliente.
             cliente_guardado = (
                 self.cliente_dao.guardar(
                     cliente
@@ -228,14 +399,18 @@ class ControlClientes(ControlBase):
 
         except ValueError as error:
             raise ValueError(
-                "Error al registrar el cliente: "
-                f"{error}"
+                (
+                    "Error al registrar el cliente: "
+                    f"{error}"
+                )
             ) from error
 
         except Exception as error:
             raise RuntimeError(
-                "Error inesperado al registrar "
-                f"cliente: {error}"
+                (
+                    "Error inesperado al registrar "
+                    f"cliente: {error}"
+                )
             ) from error
 
     def buscar_por_id(
@@ -272,7 +447,10 @@ class ControlClientes(ControlBase):
             or not correo.strip()
         ):
             raise ValueError(
-                "El correo electrónico es obligatorio."
+                (
+                    "El correo electrónico es "
+                    "obligatorio."
+                )
             )
 
         return self.cliente_dao.buscar_por_correo(
@@ -312,6 +490,12 @@ class ControlClientes(ControlBase):
                 "Se requiere una instancia de Cliente."
             )
 
+        cliente.genero = (
+            self._normalizar_genero(
+                cliente.genero
+            )
+        )
+
         try:
             cliente_actualizado = (
                 self.cliente_dao.actualizar(
@@ -320,7 +504,10 @@ class ControlClientes(ControlBase):
             )
 
             self._registrar_log(
-                cliente_actualizado.correo_electronico,
+                (
+                    cliente_actualizado
+                    .correo_electronico
+                ),
                 "ACTUALIZACION_CLIENTE",
             )
 
@@ -328,15 +515,78 @@ class ControlClientes(ControlBase):
 
         except ValueError as error:
             raise ValueError(
-                "Error al actualizar cliente: "
-                f"{error}"
+                (
+                    "Error al actualizar cliente: "
+                    f"{error}"
+                )
             ) from error
 
         except Exception as error:
             raise RuntimeError(
-                "Error inesperado al actualizar "
-                f"cliente: {error}"
+                (
+                    "Error inesperado al actualizar "
+                    f"cliente: {error}"
+                )
             ) from error
+
+    def registrar_actualizacion_peso(
+        self,
+        id_cliente: int,
+        nuevo_peso: Union[
+            int,
+            float,
+            Decimal,
+        ],
+    ) -> Cliente:
+        """
+        Actualiza el peso actual de un cliente.
+        """
+        self._validar_id_cliente(id_cliente)
+
+        if (
+            not isinstance(
+                nuevo_peso,
+                (
+                    int,
+                    float,
+                    Decimal,
+                ),
+            )
+            or isinstance(nuevo_peso, bool)
+            or nuevo_peso <= 0
+        ):
+            raise ValueError(
+                (
+                    "El nuevo peso debe ser "
+                    "mayor que cero."
+                )
+            )
+
+        cliente = (
+            self.cliente_dao.buscar_por_id(
+                id_cliente
+            )
+        )
+
+        if cliente is None:
+            raise ValueError(
+                "No se encontró el cliente."
+            )
+
+        cliente.peso = nuevo_peso
+
+        cliente_actualizado = (
+            self.cliente_dao.actualizar(
+                cliente
+            )
+        )
+
+        self._registrar_log(
+            f"CLIENTE_{id_cliente}",
+            "ACTUALIZACION_PESO",
+        )
+
+        return cliente_actualizado
 
     def cambiar_contrasenia(
         self,
@@ -357,7 +607,10 @@ class ControlClientes(ControlBase):
             or not contrasenia_actual
         ):
             raise ValueError(
-                "La contraseña actual es obligatoria."
+                (
+                    "La contraseña actual es "
+                    "obligatoria."
+                )
             )
 
         if (
@@ -368,8 +621,10 @@ class ControlClientes(ControlBase):
             or not nueva_contrasenia
         ):
             raise ValueError(
-                "La nueva contraseña no puede estar "
-                "vacía."
+                (
+                    "La nueva contraseña no puede "
+                    "estar vacía."
+                )
             )
 
         if not GestorSeguridad.validar_fortaleza_contrasena(
@@ -392,7 +647,7 @@ class ControlClientes(ControlBase):
         id_usuario: int,
     ) -> bool:
         """
-        Elimina un cliente por ID de usuario.
+        Elimina un cliente por ID.
         """
         self._validar_id_usuario(id_usuario)
 
@@ -418,11 +673,21 @@ class ControlClientes(ControlBase):
         """
         self._validar_id_cliente(id_cliente)
 
-        progreso = (
-            self.cliente_dao.obtener_progreso(
-                id_cliente
-            )
+        metodo = getattr(
+            self.cliente_dao,
+            "obtener_progreso",
+            None,
         )
+
+        if not callable(metodo):
+            raise RuntimeError(
+                (
+                    "El DAO de clientes no tiene "
+                    "el método obtener_progreso()."
+                )
+            )
+
+        progreso = metodo(id_cliente)
 
         self._registrar_log(
             f"CLIENTE_{id_cliente}",
@@ -444,12 +709,22 @@ class ControlClientes(ControlBase):
         """
         self._validar_id_cliente(id_cliente)
 
-        progreso = (
-            self.cliente_dao
-            .generar_progreso_mensual(
-                id_cliente
-            )
+        metodo = getattr(
+            self.cliente_dao,
+            "generar_progreso_mensual",
+            None,
         )
+
+        if not callable(metodo):
+            raise RuntimeError(
+                (
+                    "El DAO de clientes no tiene "
+                    "el método "
+                    "generar_progreso_mensual()."
+                )
+            )
+
+        progreso = metodo(id_cliente)
 
         self._registrar_log(
             f"CLIENTE_{id_cliente}",
@@ -471,12 +746,22 @@ class ControlClientes(ControlBase):
         """
         self._validar_id_cliente(id_cliente)
 
-        diferencia = (
-            self.cliente_dao
-            .calcular_diferencia_peso(
-                id_cliente
-            )
+        metodo = getattr(
+            self.cliente_dao,
+            "calcular_diferencia_peso",
+            None,
         )
+
+        if not callable(metodo):
+            raise RuntimeError(
+                (
+                    "El DAO de clientes no tiene "
+                    "el método "
+                    "calcular_diferencia_peso()."
+                )
+            )
+
+        diferencia = metodo(id_cliente)
 
         self._registrar_log(
             f"CLIENTE_{id_cliente}",
@@ -504,8 +789,10 @@ class ControlClientes(ControlBase):
             or id_usuario <= 0
         ):
             raise ValueError(
-                "El ID de usuario debe ser un entero "
-                "positivo."
+                (
+                    "El ID de usuario debe ser un "
+                    "entero positivo."
+                )
             )
 
     @staticmethod
@@ -521,6 +808,8 @@ class ControlClientes(ControlBase):
             or id_cliente <= 0
         ):
             raise ValueError(
-                "El ID de cliente debe ser un entero "
-                "positivo."
+                (
+                    "El ID de cliente debe ser un "
+                    "entero positivo."
+                )
             )

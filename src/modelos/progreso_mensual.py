@@ -1,21 +1,24 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Optional
+from typing import Optional, Union
 
 
 class ProgresoMensual:
     """
-    Representa el progreso mensual de un cliente.
+    Representa el registro mensual del progreso de un cliente.
+
+    El campo peso representa el peso registrado durante
+    ese mes. No representa el peso objetivo.
     """
 
     def __init__(
         self,
-        mes: date,
-        peso: float,
+        mes: Union[date, datetime],
+        peso: Union[int, float, Decimal],
         sesiones_completadas: int = 0,
         sesiones_planificadas: int = 12,
         porcentaje_cumplimiento: Optional[
-            float
+            Union[int, float, Decimal]
         ] = None,
         id_progreso: Optional[int] = None,
         id_cliente: Optional[int] = None,
@@ -33,15 +36,9 @@ class ProgresoMensual:
             sesiones_completadas
         )
 
-        # El porcentaje se calcula a partir de las
-        # sesiones para evitar inconsistencias.
-        porcentaje_calculado = (
-            self._calcular_porcentaje()
-        )
-
         if porcentaje_cumplimiento is None:
             self._porcentaje_cumplimiento = (
-                porcentaje_calculado
+                self._calcular_porcentaje()
             )
         else:
             self.porcentaje_cumplimiento = (
@@ -58,14 +55,14 @@ class ProgresoMensual:
         valor: Optional[int],
     ) -> None:
         if valor is not None:
-            if isinstance(valor, bool):
+            if (
+                isinstance(valor, bool)
+                or not isinstance(valor, int)
+                or valor <= 0
+            ):
                 raise ValueError(
-                    "El ID de progreso debe ser entero."
-                )
-
-            if not isinstance(valor, int) or valor <= 0:
-                raise ValueError(
-                    "El ID de progreso debe ser positivo."
+                    "El ID de progreso debe ser "
+                    "un entero positivo."
                 )
 
         self._id_progreso = valor
@@ -80,14 +77,14 @@ class ProgresoMensual:
         valor: Optional[int],
     ) -> None:
         if valor is not None:
-            if isinstance(valor, bool):
+            if (
+                isinstance(valor, bool)
+                or not isinstance(valor, int)
+                or valor <= 0
+            ):
                 raise ValueError(
-                    "El ID de cliente debe ser entero."
-                )
-
-            if not isinstance(valor, int) or valor <= 0:
-                raise ValueError(
-                    "El ID de cliente debe ser positivo."
+                    "El ID de cliente debe ser "
+                    "un entero positivo."
                 )
 
         self._id_cliente = valor
@@ -99,14 +96,19 @@ class ProgresoMensual:
     @mes.setter
     def mes(
         self,
-        valor: date,
+        valor: Union[date, datetime],
     ) -> None:
+        if isinstance(valor, datetime):
+            valor = valor.date()
+
         if not isinstance(valor, date):
             raise ValueError(
                 "El mes debe ser una fecha válida."
             )
 
-        self._mes = valor.replace(day=1)
+        self._mes = valor.replace(
+            day=1,
+        )
 
     @property
     def peso(self) -> Decimal:
@@ -115,25 +117,27 @@ class ProgresoMensual:
     @peso.setter
     def peso(
         self,
-        valor,
+        valor: Union[int, float, Decimal],
     ) -> None:
-        if isinstance(valor, bool):
-            raise ValueError(
-                "El peso debe ser numérico."
+        if (
+            isinstance(valor, bool)
+            or not isinstance(
+                valor,
+                (int, float, Decimal),
             )
-
-        if not isinstance(
-            valor,
-            (int, float, Decimal),
         ):
             raise ValueError(
                 "El peso debe ser numérico."
             )
 
         try:
-            peso_decimal = Decimal(str(valor))
+            peso_decimal = Decimal(
+                str(valor)
+            )
+
         except (
             InvalidOperation,
+            TypeError,
             ValueError,
         ) as error:
             raise ValueError(
@@ -145,7 +149,9 @@ class ProgresoMensual:
                 "El peso debe ser mayor que cero."
             )
 
-        self._peso = peso_decimal
+        self._peso = peso_decimal.quantize(
+            Decimal("0.01")
+        )
 
     @property
     def sesiones_completadas(self) -> int:
@@ -156,15 +162,14 @@ class ProgresoMensual:
         self,
         valor: int,
     ) -> None:
-        if isinstance(valor, bool):
+        if (
+            isinstance(valor, bool)
+            or not isinstance(valor, int)
+            or valor < 0
+        ):
             raise ValueError(
-                "Las sesiones completadas deben ser enteras."
-            )
-
-        if not isinstance(valor, int) or valor < 0:
-            raise ValueError(
-                "Las sesiones completadas no pueden "
-                "ser negativas."
+                "Las sesiones completadas deben "
+                "ser enteros no negativos."
             )
 
         self._sesiones_completadas = valor
@@ -184,15 +189,14 @@ class ProgresoMensual:
         self,
         valor: int,
     ) -> None:
-        if isinstance(valor, bool):
+        if (
+            isinstance(valor, bool)
+            or not isinstance(valor, int)
+            or valor < 0
+        ):
             raise ValueError(
-                "Las sesiones planificadas deben ser enteras."
-            )
-
-        if not isinstance(valor, int) or valor < 0:
-            raise ValueError(
-                "Las sesiones planificadas no pueden "
-                "ser negativas."
+                "Las sesiones planificadas deben "
+                "ser enteros no negativos."
             )
 
         self._sesiones_planificadas = valor
@@ -210,29 +214,32 @@ class ProgresoMensual:
     @porcentaje_cumplimiento.setter
     def porcentaje_cumplimiento(
         self,
-        valor,
+        valor: Union[int, float, Decimal],
     ) -> None:
-        if isinstance(valor, bool):
-            raise ValueError(
-                "El porcentaje debe ser numérico."
+        if (
+            isinstance(valor, bool)
+            or not isinstance(
+                valor,
+                (int, float, Decimal),
             )
-
-        if not isinstance(
-            valor,
-            (int, float, Decimal),
         ):
             raise ValueError(
                 "El porcentaje debe ser numérico."
             )
 
         try:
-            porcentaje = Decimal(str(valor))
+            porcentaje = Decimal(
+                str(valor)
+            )
+
         except (
             InvalidOperation,
+            TypeError,
             ValueError,
         ) as error:
             raise ValueError(
-                "El porcentaje no tiene un formato válido."
+                "El porcentaje no tiene un formato "
+                "válido."
             ) from error
 
         if porcentaje < Decimal("0"):
@@ -240,7 +247,6 @@ class ProgresoMensual:
                 "El porcentaje no puede ser negativo."
             )
 
-        # Un cumplimiento superior al 100 % se limita a 100.
         if porcentaje > Decimal("100"):
             porcentaje = Decimal("100")
 
@@ -250,16 +256,50 @@ class ProgresoMensual:
             )
         )
 
+    def actualizar_peso(
+        self,
+        nuevo_peso: Union[int, float, Decimal],
+    ) -> None:
+        """
+        Actualiza el peso de este registro mensual.
+        """
+        self.peso = nuevo_peso
+
+    def actualizar_sesiones(
+        self,
+        sesiones_completadas: int,
+        sesiones_planificadas: Optional[
+            int
+        ] = None,
+    ) -> None:
+        """
+        Actualiza las sesiones del mes.
+        """
+        self.sesiones_completadas = (
+            sesiones_completadas
+        )
+
+        if sesiones_planificadas is not None:
+            self.sesiones_planificadas = (
+                sesiones_planificadas
+            )
+
+        self._actualizar_porcentaje()
+
     def _calcular_porcentaje(self) -> float:
         """
-        Calcula el porcentaje usando las sesiones actuales.
+        Calcula el cumplimiento mensual.
         """
         if self.sesiones_planificadas <= 0:
             return 0.0
 
         porcentaje = (
-            Decimal(self.sesiones_completadas)
-            / Decimal(self.sesiones_planificadas)
+            Decimal(
+                self.sesiones_completadas
+            )
+            / Decimal(
+                self.sesiones_planificadas
+            )
             * Decimal("100")
         )
 
@@ -285,6 +325,7 @@ class ProgresoMensual:
         Recalcula y devuelve el porcentaje.
         """
         self._actualizar_porcentaje()
+
         return self.porcentaje_cumplimiento
 
     def actualizar_progreso(self) -> None:
@@ -293,13 +334,19 @@ class ProgresoMensual:
         """
         self._actualizar_porcentaje()
 
+    def obtener_mes_texto(self) -> str:
+        """
+        Devuelve el mes en formato legible.
+        """
+        return self.mes.strftime("%B %Y")
+
     def generar_resumen(self) -> str:
         """
         Devuelve un resumen legible del progreso.
         """
         return (
-            f"Progreso {self.mes.strftime('%B %Y')} | "
-            f"Peso: {self.peso:.1f} kg | "
+            f"Progreso {self.obtener_mes_texto()} | "
+            f"Peso: {self.peso:.2f} kg | "
             "Sesiones: "
             f"{self.sesiones_completadas}/"
             f"{self.sesiones_planificadas} | "

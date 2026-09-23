@@ -30,10 +30,14 @@ class SesionEntrenamientoDAO:
         "calorias_quemadas",
         "observaciones",
         "completada",
+        "veces_planificadas",
+        "veces_realizadas",
     )
 
     def __init__(self) -> None:
-        self._bd = ConexionBD.obtener_instancia()
+        self._bd = (
+            ConexionBD.obtener_instancia()
+        )
 
     def guardar(
         self,
@@ -43,6 +47,7 @@ class SesionEntrenamientoDAO:
         Guarda una nueva sesión.
         """
         self._validar_sesion(sesion)
+
         self._bd.abrir_conexion()
 
         try:
@@ -60,11 +65,20 @@ class SesionEntrenamientoDAO:
                         intensidad_real,
                         calorias_quemadas,
                         observaciones,
-                        completada
+                        veces_planificadas,
+                        veces_realizadas
                     )
                     VALUES (
-                        %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s
                     )
                     RETURNING
                         id_sesion,
@@ -76,7 +90,9 @@ class SesionEntrenamientoDAO:
                         intensidad_real,
                         calorias_quemadas,
                         observaciones,
-                        completada
+                        completada,
+                        veces_planificadas,
+                        veces_realizadas
                     """,
                     (
                         sesion.id_cliente,
@@ -89,33 +105,49 @@ class SesionEntrenamientoDAO:
                         ),
                         sesion.calorias_quemadas,
                         sesion.observaciones,
-                        sesion.completada,
+                        sesion.veces_planificadas,
+                        sesion.veces_realizadas,
                     ),
                 )
 
                 fila = cursor.fetchone()
 
-            if fila is None:
-                raise RuntimeError(
-                    "No se recibió la sesión insertada."
-                )
+                if fila is None:
+                    raise RuntimeError(
+                        "No se recibió la sesión insertada."
+                    )
 
             self._bd._conexion.commit()
 
-            return self._crear_sesion_desde_fila(fila)
+            return self._crear_sesion_desde_fila(
+                fila
+            )
 
         except IntegrityError as error:
             self._bd._conexion.rollback()
 
             if error.pgcode == "23503":
                 raise ValueError(
-                    "El cliente o la rutina referenciada "
-                    "no existe."
+                    (
+                        "El cliente o la rutina "
+                        "referenciada no existe."
+                    )
+                ) from error
+
+            if error.pgcode == "23514":
+                raise ValueError(
+                    (
+                        "Las veces realizadas deben ser "
+                        "mayores o iguales a cero y no "
+                        "pueden superar las planificadas."
+                    )
                 ) from error
 
             raise ValueError(
-                "No se pudo guardar la sesión por una "
-                "restricción de integridad."
+                (
+                    "No se pudo guardar la sesión por "
+                    "una restricción de integridad."
+                )
             ) from error
 
         except Exception:
@@ -129,6 +161,11 @@ class SesionEntrenamientoDAO:
         """
         Busca una sesión por ID.
         """
+        id_sesion = self._validar_id(
+            id_sesion,
+            "El ID de sesión",
+        )
+
         self._bd.abrir_conexion()
 
         try:
@@ -150,9 +187,12 @@ class SesionEntrenamientoDAO:
             if fila is None:
                 return None
 
-            return self._crear_sesion_desde_fila(fila)
+            return self._crear_sesion_desde_fila(
+                fila
+            )
 
         except Exception:
+            self._bd._conexion.rollback()
             raise
 
     def listar_por_cliente(
@@ -162,25 +202,10 @@ class SesionEntrenamientoDAO:
         """
         Lista las sesiones de un cliente.
         """
-        if isinstance(id_cliente, bool):
-            raise ValueError(
-                "El ID del cliente debe ser un entero."
-            )
-
-        try:
-            id_cliente = int(id_cliente)
-        except (
-            TypeError,
-            ValueError,
-        ) as error:
-            raise ValueError(
-                "El ID del cliente debe ser un entero."
-            ) from error
-
-        if id_cliente <= 0:
-            raise ValueError(
-                "El ID del cliente debe ser positivo."
-            )
+        id_cliente = self._validar_id(
+            id_cliente,
+            "El ID del cliente",
+        )
 
         self._bd.abrir_conexion()
 
@@ -201,7 +226,9 @@ class SesionEntrenamientoDAO:
 
                 filas = cursor.fetchall()
 
-            sesiones = []
+            sesiones: List[
+                SesionEntrenamiento
+            ] = []
 
             for fila in filas:
                 try:
@@ -210,16 +237,20 @@ class SesionEntrenamientoDAO:
                             fila
                         )
                     )
+
                 except Exception as error:
                     raise RuntimeError(
-                        "Error al convertir la sesión "
-                        f"recibida: {dict(fila)!r}. "
-                        f"Causa: {error}"
+                        (
+                            "Error al convertir la sesión "
+                            f"recibida: {dict(fila)!r}. "
+                            f"Causa: {error}"
+                        )
                     ) from error
 
             return sesiones
 
         except Exception:
+            self._bd._conexion.rollback()
             raise
 
     def buscar_por_cliente(
@@ -229,7 +260,9 @@ class SesionEntrenamientoDAO:
         """
         Alias compatible para listar sesiones.
         """
-        return self.listar_por_cliente(id_cliente)
+        return self.listar_por_cliente(
+            id_cliente
+        )
 
     def actualizar(
         self,
@@ -238,12 +271,13 @@ class SesionEntrenamientoDAO:
         """
         Actualiza una sesión existente.
         """
-        if sesion.id_sesion is None:
-            raise ValueError(
-                "La sesión debe tener un ID."
-            )
+        id_sesion = self._validar_id(
+            sesion.id_sesion,
+            "El ID de sesión",
+        )
 
         self._validar_sesion(sesion)
+
         self._bd.abrir_conexion()
 
         try:
@@ -262,7 +296,8 @@ class SesionEntrenamientoDAO:
                         intensidad_real = %s,
                         calorias_quemadas = %s,
                         observaciones = %s,
-                        completada = %s
+                        veces_planificadas = %s,
+                        veces_realizadas = %s
                     WHERE id_sesion = %s
                     RETURNING
                         {self._columnas_sql()}
@@ -278,8 +313,9 @@ class SesionEntrenamientoDAO:
                         ),
                         sesion.calorias_quemadas,
                         sesion.observaciones,
-                        sesion.completada,
-                        sesion.id_sesion,
+                        sesion.veces_planificadas,
+                        sesion.veces_realizadas,
+                        id_sesion,
                     ),
                 )
 
@@ -292,7 +328,24 @@ class SesionEntrenamientoDAO:
 
             self._bd._conexion.commit()
 
-            return self._crear_sesion_desde_fila(fila)
+            return self._crear_sesion_desde_fila(
+                fila
+            )
+
+        except IntegrityError as error:
+            self._bd._conexion.rollback()
+
+            if error.pgcode == "23514":
+                raise ValueError(
+                    (
+                        "Las veces realizadas no pueden "
+                        "superar las planificadas."
+                    )
+                ) from error
+
+            raise ValueError(
+                "No se pudo actualizar la sesión."
+            ) from error
 
         except Exception:
             self._bd._conexion.rollback()
@@ -305,25 +358,10 @@ class SesionEntrenamientoDAO:
         """
         Elimina una sesión por ID.
         """
-        if isinstance(id_sesion, bool):
-            raise ValueError(
-                "El ID de sesión debe ser un entero."
-            )
-
-        try:
-            id_sesion = int(id_sesion)
-        except (
-            TypeError,
-            ValueError,
-        ) as error:
-            raise ValueError(
-                "El ID de sesión debe ser un entero."
-            ) from error
-
-        if id_sesion <= 0:
-            raise ValueError(
-                "El ID de sesión debe ser positivo."
-            )
+        id_sesion = self._validar_id(
+            id_sesion,
+            "El ID de sesión",
+        )
 
         self._bd.abrir_conexion()
 
@@ -333,11 +371,15 @@ class SesionEntrenamientoDAO:
                     """
                     DELETE FROM sesiones_entrenamiento
                     WHERE id_sesion = %s
+                    RETURNING id_sesion
                     """,
                     (id_sesion,),
                 )
 
-                eliminado = cursor.rowcount > 0
+                eliminado = (
+                    cursor.fetchone()
+                    is not None
+                )
 
             self._bd._conexion.commit()
 
@@ -357,12 +399,57 @@ class SesionEntrenamientoDAO:
         )
 
     @staticmethod
+    def _validar_id(
+        valor: object,
+        nombre: str,
+    ) -> int:
+        """
+        Convierte y valida un ID positivo.
+        """
+        if valor is None or isinstance(
+            valor,
+            bool,
+        ):
+            raise ValueError(
+                f"{nombre} debe ser un entero positivo."
+            )
+
+        try:
+            identificador = int(valor)
+
+        except (
+            TypeError,
+            ValueError,
+        ) as error:
+            raise ValueError(
+                f"{nombre} debe ser un entero positivo."
+            ) from error
+
+        if identificador <= 0:
+            raise ValueError(
+                f"{nombre} debe ser positivo."
+            )
+
+        return identificador
+
+    @staticmethod
     def _validar_sesion(
         sesion: SesionEntrenamiento,
     ) -> None:
         """
         Valida los datos mínimos de una sesión.
         """
+        if not isinstance(
+            sesion,
+            SesionEntrenamiento,
+        ):
+            raise TypeError(
+                (
+                    "Debe proporcionar una instancia "
+                    "de SesionEntrenamiento."
+                )
+            )
+
         if sesion.id_cliente is None:
             raise ValueError(
                 "La sesión debe tener un cliente."
@@ -376,6 +463,33 @@ class SesionEntrenamientoDAO:
         if not sesion.nombre_ejercicio:
             raise ValueError(
                 "La sesión debe tener un ejercicio."
+            )
+
+        if sesion.veces_planificadas <= 0:
+            raise ValueError(
+                (
+                    "Las veces planificadas deben ser "
+                    "mayores que cero."
+                )
+            )
+
+        if sesion.veces_realizadas < 0:
+            raise ValueError(
+                (
+                    "Las veces realizadas no pueden "
+                    "ser negativas."
+                )
+            )
+
+        if (
+            sesion.veces_realizadas
+            > sesion.veces_planificadas
+        ):
+            raise ValueError(
+                (
+                    "Las veces realizadas no pueden "
+                    "superar las planificadas."
+                )
             )
 
     @staticmethod
@@ -415,6 +529,16 @@ class SesionEntrenamientoDAO:
                 "La sesión no tiene intensidad."
             )
 
+        veces_planificadas = datos.get(
+            "veces_planificadas",
+            1,
+        )
+
+        veces_realizadas = datos.get(
+            "veces_realizadas",
+            0,
+        )
+
         return SesionEntrenamiento(
             id_sesion=datos.get("id_sesion"),
             id_cliente=datos.get("id_cliente"),
@@ -430,7 +554,9 @@ class SesionEntrenamientoDAO:
             duracion_real=int(duracion),
             intensidad_real=(
                 SesionEntrenamientoDAO
-                ._convertir_intensidad(intensidad)
+                ._convertir_intensidad(
+                    intensidad
+                )
             ),
             calorias_quemadas=calorias,
             observaciones=(
@@ -440,11 +566,11 @@ class SesionEntrenamientoDAO:
                 )
                 or ""
             ),
-            completada=bool(
-                datos.get(
-                    "completada",
-                    False,
-                )
+            veces_planificadas=int(
+                veces_planificadas
+            ),
+            veces_realizadas=int(
+                veces_realizadas
             ),
         )
 
@@ -453,9 +579,12 @@ class SesionEntrenamientoDAO:
         valor,
     ) -> Intensidad:
         """
-        Convierte el valor recibido desde PostgreSQL.
+        Convierte la intensidad de PostgreSQL.
         """
-        if isinstance(valor, Intensidad):
+        if isinstance(
+            valor,
+            Intensidad,
+        ):
             return valor
 
         if valor is None:
@@ -463,7 +592,9 @@ class SesionEntrenamientoDAO:
                 "La intensidad no puede ser NULL."
             )
 
-        texto = str(valor).strip().upper()
+        texto = str(
+            valor
+        ).strip().upper()
 
         equivalencias = {
             "BAJA": Intensidad.BAJA,
@@ -473,8 +604,10 @@ class SesionEntrenamientoDAO:
 
         if texto not in equivalencias:
             raise ValueError(
-                "Intensidad inválida recibida: "
-                f"{valor!r}"
+                (
+                    "Intensidad inválida recibida: "
+                    f"{valor!r}"
+                )
             )
 
         return equivalencias[texto]
@@ -484,12 +617,17 @@ class SesionEntrenamientoDAO:
         valor,
     ) -> str:
         """
-        Convierte Intensidad a texto para PostgreSQL.
+        Convierte Intensidad a texto.
         """
-        if isinstance(valor, Intensidad):
+        if isinstance(
+            valor,
+            Intensidad,
+        ):
             return valor.value
 
-        texto = str(valor).strip().upper()
+        texto = str(
+            valor
+        ).strip().upper()
 
         if texto not in {
             "BAJA",

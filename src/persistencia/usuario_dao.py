@@ -5,13 +5,22 @@ from psycopg2 import IntegrityError
 from src.modelos.administrador import Administrador
 from src.modelos.cliente import Cliente
 from src.persistencia.conexion_bd import ConexionBD
-from src.servicios.gestor_seguridad import GestorSeguridad
+from src.servicios.gestor_seguridad import (
+    GestorSeguridad,
+)
 
 
 class UsuarioDAO:
     """
     DAO para usuarios, clientes y administradores.
     """
+
+    GENEROS_VALIDOS = {
+        "HOMBRE",
+        "MUJER",
+        "OTRO",
+        "PREFIERO NO DECIRLO",
+    }
 
     def __init__(self) -> None:
         self._conexion = (
@@ -23,7 +32,7 @@ class UsuarioDAO:
         correo: str,
     ) -> str:
         """
-        Limpia y normaliza un correo electrónico.
+        Limpia y normaliza un correo.
         """
         if not isinstance(correo, str):
             raise ValueError(
@@ -39,12 +48,43 @@ class UsuarioDAO:
 
         return correo_limpio
 
+    @classmethod
+    def _normalizar_genero(
+        cls,
+        genero,
+    ) -> str:
+        """
+        Normaliza y valida el género.
+        """
+        if genero is None:
+            return "PREFIERO NO DECIRLO"
+
+        if not isinstance(genero, str):
+            raise ValueError(
+                "El género debe ser texto."
+            )
+
+        genero_limpio = genero.strip().upper()
+
+        if not genero_limpio:
+            return "PREFIERO NO DECIRLO"
+
+        if genero_limpio not in cls.GENEROS_VALIDOS:
+            raise ValueError(
+                (
+                    "El género debe ser HOMBRE, MUJER, "
+                    "OTRO o PREFIERO NO DECIRLO."
+                )
+            )
+
+        return genero_limpio
+
     @staticmethod
     def _obtener_tipo_usuario(
         valor,
     ) -> str:
         """
-        Convierte un enum o texto a un tipo normalizado.
+        Convierte un enum o texto a tipo normalizado.
         """
         valor = getattr(
             valor,
@@ -74,26 +114,35 @@ class UsuarioDAO:
                 "El usuario no puede ser nulo."
             )
 
-        if not isinstance(
-            getattr(usuario, "nombre", None),
-            str,
-        ) or not usuario.nombre.strip():
+        if (
+            not isinstance(
+                getattr(usuario, "nombre", None),
+                str,
+            )
+            or not usuario.nombre.strip()
+        ):
             raise ValueError(
                 "El nombre no puede estar vacío."
             )
 
-        if not isinstance(
-            getattr(usuario, "apellido", None),
-            str,
-        ) or not usuario.apellido.strip():
+        if (
+            not isinstance(
+                getattr(usuario, "apellido", None),
+                str,
+            )
+            or not usuario.apellido.strip()
+        ):
             raise ValueError(
                 "El apellido no puede estar vacío."
             )
 
-        if not isinstance(
-            getattr(usuario, "edad", None),
-            int,
-        ) or isinstance(usuario.edad, bool):
+        if (
+            not isinstance(
+                getattr(usuario, "edad", None),
+                int,
+            )
+            or isinstance(usuario.edad, bool)
+        ):
             raise ValueError(
                 "La edad debe ser un entero."
             )
@@ -110,20 +159,21 @@ class UsuarioDAO:
     ):
         """
         Guarda un usuario.
-
-        La contraseña recibida es plana únicamente durante
-        este método. Antes de enviarla a PostgreSQL se
-        convierte siempre en un hash bcrypt.
         """
         self._validar_usuario(usuario)
 
         if (
-            not isinstance(contrasenia_plana, str)
+            not isinstance(
+                contrasenia_plana,
+                str,
+            )
             or not contrasenia_plana
         ):
             raise ValueError(
-                "La contraseña debe ser una cadena "
-                "no vacía."
+                (
+                    "La contraseña debe ser una cadena "
+                    "no vacía."
+                )
             )
 
         correo_limpio = (
@@ -156,31 +206,49 @@ class UsuarioDAO:
                 "El tipo de usuario no es válido."
             )
 
-        sql_usuario = """
-            INSERT INTO usuarios (
-                nombre,
-                apellido,
-                correo_electronico,
-                contrasenia_hash,
-                edad,
-                tipo_usuario
+        if isinstance(usuario, Cliente):
+            genero_limpio = (
+                self._normalizar_genero(
+                    getattr(
+                        usuario,
+                        "genero",
+                        None,
+                    )
+                )
             )
-            VALUES (%s, %s, %s, %s, %s, %s)
-            RETURNING
-                id_usuario,
-                fecha_registro
-        """
-
-        parametros_usuario = (
-            usuario.nombre.strip(),
-            usuario.apellido.strip(),
-            correo_limpio,
-            contrasenia_hash,
-            usuario.edad,
-            tipo_usuario,
-        )
 
         try:
+            sql_usuario = """
+                INSERT INTO usuarios (
+                    nombre,
+                    apellido,
+                    correo_electronico,
+                    contrasenia_hash,
+                    edad,
+                    tipo_usuario
+                )
+                VALUES (
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s
+                )
+                RETURNING
+                    id_usuario,
+                    fecha_registro
+            """
+
+            parametros_usuario = (
+                usuario.nombre.strip(),
+                usuario.apellido.strip(),
+                correo_limpio,
+                contrasenia_hash,
+                usuario.edad,
+                tipo_usuario,
+            )
+
             resultado = (
                 self._conexion.ejecutar_consulta(
                     sql_usuario,
@@ -201,9 +269,10 @@ class UsuarioDAO:
                 resultado[0]["fecha_registro"]
             )
 
-            # Mantiene el hash en el objeto sin guardar
-            # nunca la contraseña plana.
-            if hasattr(usuario, "contrasenia_hash"):
+            if hasattr(
+                usuario,
+                "contrasenia_hash",
+            ):
                 usuario.contrasenia_hash = (
                     contrasenia_hash
                 )
@@ -213,22 +282,34 @@ class UsuarioDAO:
                     INSERT INTO clientes (
                         id_usuario,
                         peso,
+                        peso_objetivo,
                         altura,
-                        objetivo
+                        objetivo,
+                        genero
                     )
-                    VALUES (%s, %s, %s, %s)
+                    VALUES (
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s
+                    )
                     RETURNING fecha_ingreso
                 """
 
                 parametros_cliente = (
                     usuario.id_usuario,
                     usuario.peso,
+                    usuario.peso_objetivo,
                     usuario.altura,
                     usuario.objetivo,
+                    genero_limpio,
                 )
 
                 resultado_cliente = (
-                    self._conexion.ejecutar_consulta(
+                    self._conexion
+                    .ejecutar_consulta(
                         sql_cliente,
                         parametros_cliente,
                     )
@@ -255,18 +336,48 @@ class UsuarioDAO:
 
             if error.pgcode == "23503":
                 raise ValueError(
-                    "La información relacionada "
-                    "no existe."
+                    (
+                        "La información relacionada "
+                        "no existe."
+                    )
                 ) from error
 
             raise RuntimeError(
-                "Error de integridad al guardar "
-                f"el usuario: {error}"
+                (
+                    "Error de integridad al guardar "
+                    f"el usuario: {error}"
+                )
             ) from error
 
         except Exception:
             self._conexion._conexion.rollback()
             raise
+
+    @staticmethod
+    def _consulta_usuario_cliente() -> str:
+        """
+        Consulta común para recuperar usuarios.
+        """
+        return """
+            SELECT
+                u.id_usuario,
+                u.nombre,
+                u.apellido,
+                u.correo_electronico,
+                u.contrasenia_hash,
+                u.edad,
+                u.tipo_usuario,
+                u.fecha_registro,
+                c.peso,
+                c.peso_objetivo,
+                c.altura,
+                c.objetivo,
+                c.genero,
+                c.fecha_ingreso
+            FROM usuarios AS u
+            LEFT JOIN clientes AS c
+                ON u.id_usuario = c.id_usuario
+        """
 
     def buscar_por_correo(
         self,
@@ -279,26 +390,15 @@ class UsuarioDAO:
             self._normalizar_correo(correo)
         )
 
-        sql = """
-            SELECT
-                u.id_usuario,
-                u.nombre,
-                u.apellido,
-                u.correo_electronico,
-                u.contrasenia_hash,
-                u.edad,
-                u.tipo_usuario,
-                u.fecha_registro,
-                c.peso,
-                c.altura,
-                c.objetivo,
-                c.fecha_ingreso
-            FROM usuarios AS u
-            LEFT JOIN clientes AS c
-                ON u.id_usuario = c.id_usuario
-            WHERE LOWER(u.correo_electronico) = %s
+        sql = (
+            self._consulta_usuario_cliente()
+            + """
+            WHERE LOWER(
+                u.correo_electronico
+            ) = %s
             LIMIT 1
-        """
+            """
+        )
 
         resultado = (
             self._conexion.ejecutar_consulta(
@@ -319,34 +419,8 @@ class UsuarioDAO:
         )
 
         if tipo_usuario == "cliente":
-            return Cliente(
-                id_usuario=fila["id_usuario"],
-                nombre=fila["nombre"],
-                apellido=fila["apellido"],
-                correo_electronico=(
-                    fila["correo_electronico"]
-                ),
-                contrasenia_hash=(
-                    fila["contrasenia_hash"]
-                ),
-                edad=fila["edad"],
-                fecha_registro=(
-                    fila["fecha_registro"]
-                ),
-                peso=(
-                    float(fila["peso"])
-                    if fila["peso"] is not None
-                    else None
-                ),
-                altura=(
-                    float(fila["altura"])
-                    if fila["altura"] is not None
-                    else None
-                ),
-                objetivo=fila["objetivo"],
-                fecha_ingreso=(
-                    fila["fecha_ingreso"]
-                ),
+            return self._crear_cliente_desde_fila(
+                fila
             )
 
         if tipo_usuario == "administrador":
@@ -367,8 +441,67 @@ class UsuarioDAO:
             )
 
         raise ValueError(
-            "Tipo de usuario desconocido: "
-            f"{tipo_usuario}"
+            (
+                "Tipo de usuario desconocido: "
+                f"{tipo_usuario}"
+            )
+        )
+
+    @classmethod
+    def _crear_cliente_desde_fila(
+        cls,
+        fila,
+    ) -> Cliente:
+        """
+        Convierte una fila en Cliente.
+        """
+        peso = fila["peso"]
+
+        if peso is None:
+            raise ValueError(
+                "El cliente no tiene peso registrado."
+            )
+
+        peso_objetivo = fila["peso_objetivo"]
+
+        if peso_objetivo is None:
+            peso_objetivo = peso
+
+        altura = fila["altura"]
+
+        if altura is None:
+            raise ValueError(
+                "El cliente no tiene altura registrada."
+            )
+
+        genero = cls._normalizar_genero(
+            fila.get("genero")
+        )
+
+        return Cliente(
+            id_usuario=fila["id_usuario"],
+            nombre=fila["nombre"],
+            apellido=fila["apellido"],
+            correo_electronico=(
+                fila["correo_electronico"]
+            ),
+            contrasenia_hash=(
+                fila["contrasenia_hash"]
+            ),
+            edad=fila["edad"],
+            genero=genero,
+            peso=float(peso),
+            peso_objetivo=float(
+                peso_objetivo
+            ),
+            altura=float(altura),
+            objetivo=fila["objetivo"],
+            fecha_registro=(
+                fila["fecha_registro"]
+            ),
+            fecha_ingreso=(
+                fila["fecha_ingreso"]
+            ),
         )
 
     def iniciar_sesion(
@@ -392,6 +525,7 @@ class UsuarioDAO:
             usuario = self.buscar_por_correo(
                 correo
             )
+
         except (
             ValueError,
             RuntimeError,
@@ -411,28 +545,31 @@ class UsuarioDAO:
             return None
 
         if not hash_guardado.startswith(
-            ("$2a$", "$2b$", "$2y$")
+            (
+                "$2a$",
+                "$2b$",
+                "$2y$",
+            )
         ):
             return None
 
         if len(hash_guardado) != 60:
             return None
 
-        return (
-            usuario
-            if GestorSeguridad.verificar_contrasenia(
-                contrasenia,
-                hash_guardado,
-            )
-            else None
-        )
+        if GestorSeguridad.verificar_contrasenia(
+            contrasenia,
+            hash_guardado,
+        ):
+            return usuario
+
+        return None
 
     def actualizar(
         self,
         usuario,
     ):
         """
-        Actualiza los datos básicos de un usuario.
+        Actualiza datos básicos de un usuario.
         """
         if getattr(
             usuario,
@@ -465,29 +602,30 @@ class UsuarioDAO:
                 "El tipo de usuario no es válido."
             )
 
-        sql = """
-            UPDATE usuarios
-            SET
-                nombre = %s,
-                apellido = %s,
-                correo_electronico = %s,
-                edad = %s,
-                tipo_usuario = %s
-            WHERE id_usuario = %s
-        """
-
-        parametros = (
-            usuario.nombre.strip(),
-            usuario.apellido.strip(),
-            correo_limpio,
-            usuario.edad,
-            tipo_usuario,
-            usuario.id_usuario,
-        )
-
         try:
+            sql = """
+                UPDATE usuarios
+                SET
+                    nombre = %s,
+                    apellido = %s,
+                    correo_electronico = %s,
+                    edad = %s,
+                    tipo_usuario = %s
+                WHERE id_usuario = %s
+            """
+
+            parametros = (
+                usuario.nombre.strip(),
+                usuario.apellido.strip(),
+                correo_limpio,
+                usuario.edad,
+                tipo_usuario,
+                usuario.id_usuario,
+            )
+
             actualizado = (
-                self._conexion.ejecutar_actualizacion(
+                self._conexion
+                .ejecutar_actualizacion(
                     sql,
                     parametros,
                 )
@@ -496,6 +634,36 @@ class UsuarioDAO:
             if not actualizado:
                 raise ValueError(
                     "No se encontró el usuario."
+                )
+
+            if isinstance(usuario, Cliente):
+                genero = (
+                    self._normalizar_genero(
+                        usuario.genero
+                    )
+                )
+
+                sql_cliente = """
+                    UPDATE clientes
+                    SET
+                        peso = %s,
+                        peso_objetivo = %s,
+                        altura = %s,
+                        objetivo = %s,
+                        genero = %s
+                    WHERE id_usuario = %s
+                """
+
+                self._conexion.ejecutar_actualizacion(
+                    sql_cliente,
+                    (
+                        usuario.peso,
+                        usuario.peso_objetivo,
+                        usuario.altura,
+                        usuario.objetivo,
+                        genero,
+                        usuario.id_usuario,
+                    ),
                 )
 
             self._conexion._conexion.commit()
@@ -511,8 +679,10 @@ class UsuarioDAO:
                 ) from error
 
             raise ValueError(
-                "Error de integridad al actualizar "
-                f"el usuario: {error}"
+                (
+                    "Error de integridad al actualizar "
+                    f"el usuario: {error}"
+                )
             ) from error
 
         except ValueError:
@@ -523,8 +693,10 @@ class UsuarioDAO:
             self._conexion._conexion.rollback()
 
             raise ValueError(
-                "Error al actualizar el usuario: "
-                f"{error}"
+                (
+                    "Error al actualizar el usuario: "
+                    f"{error}"
+                )
             ) from error
 
     def cambiar_contrasenia(
@@ -533,23 +705,22 @@ class UsuarioDAO:
         contrasenia_nueva: str,
     ) -> bool:
         """
-        Cambia la contraseña generando siempre un hash.
+        Cambia la contraseña generando un hash.
         """
-        if (
-            not isinstance(id_usuario, int)
-            or isinstance(id_usuario, bool)
-            or id_usuario <= 0
-        ):
-            raise ValueError(
-                "El ID debe ser un entero positivo."
-            )
+        self._validar_id(id_usuario)
 
         if (
-            not isinstance(contrasenia_nueva, str)
+            not isinstance(
+                contrasenia_nueva,
+                str,
+            )
             or not contrasenia_nueva
         ):
             raise ValueError(
-                "La contraseña no puede estar vacía."
+                (
+                    "La contraseña no puede estar "
+                    "vacía."
+                )
             )
 
         nuevo_hash = (
@@ -566,7 +737,8 @@ class UsuarioDAO:
 
         try:
             actualizado = (
-                self._conexion.ejecutar_actualizacion(
+                self._conexion
+                .ejecutar_actualizacion(
                     sql,
                     (
                         nuevo_hash,
@@ -590,20 +762,7 @@ class UsuarioDAO:
         """
         Elimina un usuario por ID.
         """
-        if isinstance(id_usuario, bool):
-            raise ValueError(
-                "El ID debe ser un entero positivo."
-            )
-
-        if not isinstance(id_usuario, int):
-            raise ValueError(
-                "El ID debe ser un entero positivo."
-            )
-
-        if id_usuario <= 0:
-            raise ValueError(
-                "El ID debe ser un entero positivo."
-            )
+        self._validar_id(id_usuario)
 
         sql = """
             DELETE FROM usuarios
@@ -612,7 +771,8 @@ class UsuarioDAO:
 
         try:
             eliminado = (
-                self._conexion.ejecutar_actualizacion(
+                self._conexion
+                .ejecutar_actualizacion(
                     sql,
                     (id_usuario,),
                 )
@@ -625,3 +785,22 @@ class UsuarioDAO:
         except Exception:
             self._conexion._conexion.rollback()
             raise
+
+    @staticmethod
+    def _validar_id(
+        id_usuario: int,
+    ) -> None:
+        """
+        Valida un ID positivo.
+        """
+        if (
+            not isinstance(id_usuario, int)
+            or isinstance(id_usuario, bool)
+            or id_usuario <= 0
+        ):
+            raise ValueError(
+                (
+                    "El ID debe ser un entero "
+                    "positivo."
+                )
+            )

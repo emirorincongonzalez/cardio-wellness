@@ -16,13 +16,6 @@ from src.modelos.enums import Intensidad
 class InterfazProgreso(InterfazBase):
     """
     Pestaña de progreso del cliente.
-
-    Muestra:
-
-    - Resumen de actividad.
-    - Estado de la meta.
-    - Sesiones registradas.
-    - Historial mensual.
     """
 
     def __init__(
@@ -54,6 +47,7 @@ class InterfazProgreso(InterfazBase):
     def _crear_interfaz(self) -> None:
         self._crear_barra_acciones()
         self._crear_resumen()
+        self._crear_actualizacion_peso()
         self._crear_sesiones()
         self._crear_historial()
 
@@ -76,7 +70,7 @@ class InterfazProgreso(InterfazBase):
 
         ttk.Button(
             frame,
-            text="Generar Progreso Mensual",
+            text="Generar progreso mensual",
             command=self.generarProgresoMensual,
         ).pack(
             side="right",
@@ -86,7 +80,7 @@ class InterfazProgreso(InterfazBase):
     def _crear_resumen(self) -> None:
         frame = ttk.LabelFrame(
             self,
-            text="Resumen de Actividad",
+            text="Resumen de actividad",
             padding=10,
         )
 
@@ -121,7 +115,7 @@ class InterfazProgreso(InterfazBase):
 
         self._lbl_calorias = ttk.Label(
             frame,
-            text="Calorias: -",
+            text="Calorías: -",
         )
 
         self._lbl_calorias.grid(
@@ -131,9 +125,45 @@ class InterfazProgreso(InterfazBase):
             pady=5,
         )
 
+        self._lbl_planificadas = ttk.Label(
+            frame,
+            text="Veces planificadas: -",
+        )
+
+        self._lbl_planificadas.grid(
+            row=1,
+            column=0,
+            padx=10,
+            pady=5,
+        )
+
+        self._lbl_realizadas = ttk.Label(
+            frame,
+            text="Veces realizadas: -",
+        )
+
+        self._lbl_realizadas.grid(
+            row=1,
+            column=1,
+            padx=10,
+            pady=5,
+        )
+
+        self._lbl_cumplimiento = ttk.Label(
+            frame,
+            text="Cumplimiento: -",
+        )
+
+        self._lbl_cumplimiento.grid(
+            row=1,
+            column=2,
+            padx=10,
+            pady=5,
+        )
+
         frame_meta = ttk.LabelFrame(
             self,
-            text="Mi Meta (Objetivo)",
+            text="Mi meta de peso",
             padding=10,
         )
 
@@ -149,13 +179,125 @@ class InterfazProgreso(InterfazBase):
         )
 
         self._lbl_meta.pack(
+            pady=5,
+        )
+
+        self._lbl_peso_actual = ttk.Label(
+            frame_meta,
+            text="Peso actual: -",
+        )
+
+        self._lbl_peso_actual.pack(
+            pady=2,
+        )
+
+        self._lbl_objetivo = ttk.Label(
+            frame_meta,
+            text="Objetivo: -",
+        )
+
+        self._lbl_objetivo.pack(
+            pady=2,
+        )
+
+        self._lbl_peso_objetivo = ttk.Label(
+            frame_meta,
+            text="Peso objetivo: -",
+        )
+
+        self._lbl_peso_objetivo.pack(
+            pady=2,
+        )
+
+        self._lbl_rango_meta = ttk.Label(
+            frame_meta,
+            text="",
+        )
+
+        self._lbl_rango_meta.pack(
+            pady=2,
+        )
+
+        self._lbl_diferencia_meta = ttk.Label(
+            frame_meta,
+            text="Diferencia: -",
+        )
+
+        self._lbl_diferencia_meta.pack(
+            pady=2,
+        )
+
+    def _crear_actualizacion_peso(self) -> None:
+        """
+        Crea el formulario para registrar el peso mensual.
+        """
+        frame = ttk.LabelFrame(
+            self,
+            text="Actualizar peso mensual",
+            padding=10,
+        )
+
+        frame.pack(
+            fill="x",
             pady=8,
+        )
+
+        ttk.Label(
+            frame,
+            text="Nuevo peso (kg):",
+        ).grid(
+            row=0,
+            column=0,
+            padx=5,
+            pady=5,
+            sticky="w",
+        )
+
+        self._ent_nuevo_peso = ttk.Entry(
+            frame,
+            width=15,
+        )
+
+        self._ent_nuevo_peso.grid(
+            row=0,
+            column=1,
+            padx=5,
+            pady=5,
+        )
+
+        ttk.Button(
+            frame,
+            text="Registrar peso",
+            command=self.registrarPesoMensual,
+        ).grid(
+            row=0,
+            column=2,
+            padx=5,
+            pady=5,
+        )
+
+        self._lbl_actualizacion_peso = ttk.Label(
+            frame,
+            text=(
+                "El peso se guardará para el mes actual "
+                "y no cambiará el peso objetivo."
+            ),
+            foreground="#555555",
+        )
+
+        self._lbl_actualizacion_peso.grid(
+            row=1,
+            column=0,
+            columnspan=3,
+            padx=5,
+            pady=5,
+            sticky="w",
         )
 
     def _crear_sesiones(self) -> None:
         frame = ttk.LabelFrame(
             self,
-            text="Sesiones Registradas",
+            text="Sesiones registradas",
             padding=8,
         )
 
@@ -168,9 +310,13 @@ class InterfazProgreso(InterfazBase):
         columnas = (
             "Fecha",
             "Ejercicio",
-            "Duracion",
+            "Duración",
             "Intensidad",
-            "Calorias",
+            "Calorías",
+            "Planificadas",
+            "Realizadas",
+            "Cumplimiento",
+            "Estado",
             "Observaciones",
         )
 
@@ -182,12 +328,16 @@ class InterfazProgreso(InterfazBase):
         )
 
         anchos = {
-            "Fecha": 110,
-            "Ejercicio": 180,
-            "Duracion": 100,
-            "Intensidad": 110,
-            "Calorias": 110,
-            "Observaciones": 260,
+            "Fecha": 100,
+            "Ejercicio": 160,
+            "Duración": 90,
+            "Intensidad": 100,
+            "Calorías": 100,
+            "Planificadas": 100,
+            "Realizadas": 100,
+            "Cumplimiento": 110,
+            "Estado": 110,
+            "Observaciones": 240,
         }
 
         for columna in columnas:
@@ -251,7 +401,7 @@ class InterfazProgreso(InterfazBase):
     def _crear_historial(self) -> None:
         frame = ttk.LabelFrame(
             self,
-            text="Historial de Progreso Mensual",
+            text="Historial de progreso mensual",
             padding=8,
         )
 
@@ -264,8 +414,8 @@ class InterfazProgreso(InterfazBase):
         columnas = (
             "Mes",
             "Peso",
-            "Sesiones Completadas",
-            "Sesiones Planificadas",
+            "Sesiones completadas",
+            "Sesiones planificadas",
             "Cumplimiento",
         )
 
@@ -279,8 +429,8 @@ class InterfazProgreso(InterfazBase):
         anchos = {
             "Mes": 120,
             "Peso": 100,
-            "Sesiones Completadas": 170,
-            "Sesiones Planificadas": 170,
+            "Sesiones completadas": 170,
+            "Sesiones planificadas": 170,
             "Cumplimiento": 130,
         }
 
@@ -347,59 +497,296 @@ class InterfazProgreso(InterfazBase):
         Recarga todos los datos de la pestaña.
         """
         self._limpiar_tablas()
+        self._actualizar_datos_cliente()
 
         resumen = self._cargar_resumen()
 
         self._cargar_sesiones()
         self._cargar_historial_progreso()
 
+        self._actualizar_meta()
+
         if resumen is not None:
             self._evaluar_meta(resumen)
 
+    def _actualizar_datos_cliente(self) -> None:
+        """
+        Actualiza el objeto cliente si el controlador
+        dispone de un método compatible.
+        """
+        try:
+            metodo = getattr(
+                self.controlador,
+                "buscar_cliente",
+                None,
+            )
+
+            if callable(metodo):
+                cliente_actualizado = metodo(
+                    self._obtener_id_cliente()
+                )
+
+                if isinstance(
+                    cliente_actualizado,
+                    Cliente,
+                ):
+                    self._cliente = (
+                        cliente_actualizado
+                    )
+
+        except Exception:
+            pass
+
     def _limpiar_tablas(self) -> None:
-        for item in self._tree_sesiones.get_children():
+        for item in (
+            self._tree_sesiones.get_children()
+        ):
             self._tree_sesiones.delete(item)
 
-        for item in self._tree_progreso.get_children():
+        for item in (
+            self._tree_progreso.get_children()
+        ):
             self._tree_progreso.delete(item)
+
+    def _actualizar_meta(self) -> None:
+        """
+        Actualiza visualmente el progreso de la meta.
+        """
+        cliente = self._cliente
+
+        peso_actual = cliente.peso
+        peso_objetivo = cliente.peso_objetivo
+        objetivo = cliente.objetivo
+        estado = cliente.obtener_estado_meta()
+        diferencia = (
+            cliente.obtener_diferencia_meta()
+        )
+        descripcion = (
+            cliente.obtener_descripcion_meta()
+        )
+
+        self._lbl_peso_actual.config(
+            text=(
+                f"Peso actual: "
+                f"{peso_actual:.1f} kg"
+            )
+        )
+
+        self._lbl_objetivo.config(
+            text=f"Objetivo: {objetivo}",
+        )
+
+        self._lbl_peso_objetivo.config(
+            text=(
+                f"Peso objetivo: "
+                f"{peso_objetivo:.1f} kg"
+            )
+        )
+
+        self._lbl_rango_meta.config(
+            text=descripcion,
+        )
+
+        if estado == "META ALCANZADA":
+            self._lbl_meta.config(
+                text="META ALCANZADA",
+                foreground="green",
+            )
+
+            self._lbl_diferencia_meta.config(
+                text="Diferencia: 0 kg",
+                foreground="green",
+            )
+
+        else:
+            self._lbl_meta.config(
+                text="EN PROGRESO",
+                foreground="red",
+            )
+
+            self._lbl_diferencia_meta.config(
+                text=(
+                    "Diferencia restante: "
+                    f"{diferencia:.1f} kg"
+                ),
+                foreground="red",
+            )
+
+    def registrarPesoMensual(self) -> None:
+        """
+        Registra el peso del cliente para el mes actual.
+        """
+        texto = (
+            self._ent_nuevo_peso
+            .get()
+            .strip()
+        )
+
+        if not texto:
+            self.mostrar_error(
+                "Ingrese el nuevo peso."
+            )
+            return
+
+        try:
+            nuevo_peso = float(texto)
+
+        except ValueError:
+            self.mostrar_error(
+                "El peso debe ser un número válido."
+            )
+            return
+
+        if nuevo_peso <= 0:
+            self.mostrar_error(
+                "El peso debe ser mayor que cero."
+            )
+            return
+
+        try:
+            self.controlador.generar_progreso_mensual(
+                cliente=self._cliente,
+                mes=date.today(),
+                peso_actual=nuevo_peso,
+            )
+
+            self._cliente.actualizar_peso(
+                nuevo_peso
+            )
+
+            self._ent_nuevo_peso.delete(
+                0,
+                tk.END,
+            )
+
+            self.mostrar_mensaje(
+                "Peso mensual registrado correctamente."
+            )
+
+            self.cargarDatos()
+
+        except ValueError as error:
+            self.mostrar_error(str(error))
+
+        except Exception as error:
+            traceback.print_exc()
+
+            self.mostrar_error(
+                (
+                    "No se pudo registrar el peso mensual: "
+                    f"{type(error).__name__}: {error}"
+                )
+            )
 
     def _cargar_resumen(self) -> Optional[dict]:
         """
-        Carga únicamente el resumen.
+        Carga el resumen de actividad.
         """
         try:
             resumen = (
-                self.controlador.calcular_resumen_cliente(
+                self.controlador
+                .calcular_resumen_cliente(
                     self._obtener_id_cliente()
                 )
             )
 
             resumen = resumen or {}
 
+            total_sesiones = resumen.get(
+                "total_sesiones",
+                0,
+            )
+
+            total_minutos = resumen.get(
+                "total_minutos",
+                0,
+            )
+
+            total_calorias = resumen.get(
+                "total_calorias",
+                0,
+            )
+
+            total_planificadas = (
+                resumen.get(
+                    "total_veces_planificadas",
+                    resumen.get(
+                        "veces_planificadas",
+                        0,
+                    ),
+                )
+            )
+
+            total_realizadas = (
+                resumen.get(
+                    "total_veces_realizadas",
+                    resumen.get(
+                        "veces_realizadas",
+                        0,
+                    ),
+                )
+            )
+
+            cumplimiento = (
+                resumen.get(
+                    "porcentaje_cumplimiento",
+                    None,
+                )
+            )
+
+            if cumplimiento is None:
+                cumplimiento = (
+                    self._calcular_cumplimiento(
+                        total_planificadas,
+                        total_realizadas,
+                    )
+                )
+
             self._lbl_sesiones.config(
                 text=(
                     "Sesiones: "
-                    f"{resumen.get('total_sesiones', 0)}"
+                    f"{total_sesiones}"
                 )
             )
 
             self._lbl_minutos.config(
                 text=(
                     "Minutos: "
-                    f"{resumen.get('total_minutos', 0)}"
+                    f"{total_minutos}"
                 )
             )
 
             self._lbl_calorias.config(
                 text=(
-                    "Calorias: "
-                    f"{resumen.get('total_calorias', 0)}"
+                    "Calorías: "
+                    f"{total_calorias}"
+                )
+            )
+
+            self._lbl_planificadas.config(
+                text=(
+                    "Veces planificadas: "
+                    f"{total_planificadas}"
+                )
+            )
+
+            self._lbl_realizadas.config(
+                text=(
+                    "Veces realizadas: "
+                    f"{total_realizadas}"
+                )
+            )
+
+            self._lbl_cumplimiento.config(
+                text=(
+                    "Cumplimiento: "
+                    f"{self._formatear_porcentaje(cumplimiento)}"
                 )
             )
 
             return resumen
 
-        except Exception as error:
+        except Exception:
             traceback.print_exc()
 
             self._lbl_sesiones.config(
@@ -411,29 +798,32 @@ class InterfazProgreso(InterfazBase):
             )
 
             self._lbl_calorias.config(
-                text="Calorias: 0",
+                text="Calorías: 0",
             )
 
-            self._lbl_meta.config(
-                text=(
-                    "No se pudo cargar el resumen: "
-                    f"{type(error).__name__}"
-                ),
-                foreground="red",
+            self._lbl_planificadas.config(
+                text="Veces planificadas: 0",
             )
 
-            return None
+            self._lbl_realizadas.config(
+                text="Veces realizadas: 0",
+            )
+
+            self._lbl_cumplimiento.config(
+                text="Cumplimiento: 0.00%",
+            )
+
+            return {}
 
     def _cargar_sesiones(self) -> None:
         """
-        Carga las sesiones del cliente.
+        Carga las sesiones y muestra sus cantidades.
         """
         try:
-            id_cliente = self._obtener_id_cliente()
-
             sesiones = (
-                self.controlador.obtener_sesiones_cliente(
-                    id_cliente
+                self.controlador
+                .obtener_sesiones_cliente(
+                    self._obtener_id_cliente()
                 )
             )
 
@@ -441,7 +831,7 @@ class InterfazProgreso(InterfazBase):
 
             if not sesiones:
                 self._insertar_mensaje_sesiones(
-                    "Todavia no hay sesiones registradas."
+                    "Todavía no hay sesiones registradas."
                 )
                 return
 
@@ -452,10 +842,12 @@ class InterfazProgreso(InterfazBase):
                     default="",
                 )
 
-                nombre_ejercicio = self._valor_sesion(
-                    sesion,
-                    "nombre_ejercicio",
-                    default="Sin ejercicio",
+                nombre_ejercicio = (
+                    self._valor_sesion(
+                        sesion,
+                        "nombre_ejercicio",
+                        default="Sin ejercicio",
+                    )
                 )
 
                 duracion = self._valor_sesion(
@@ -476,17 +868,49 @@ class InterfazProgreso(InterfazBase):
                     default=0,
                 )
 
-                observaciones = self._valor_sesion(
+                planificadas = self._valor_sesion(
                     sesion,
-                    "observaciones",
-                    default="",
+                    "veces_planificadas",
+                    default=1,
+                )
+
+                realizadas = self._valor_sesion(
+                    sesion,
+                    "veces_realizadas",
+                    default=0,
+                )
+
+                porcentaje = (
+                    self._obtener_porcentaje_sesion(
+                        sesion,
+                        planificadas,
+                        realizadas,
+                    )
+                )
+
+                estado = (
+                    self._obtener_estado_sesion(
+                        sesion,
+                        planificadas,
+                        realizadas,
+                    )
+                )
+
+                observaciones = (
+                    self._valor_sesion(
+                        sesion,
+                        "observaciones",
+                        default="",
+                    )
                 )
 
                 self._tree_sesiones.insert(
                     "",
                     "end",
                     values=(
-                        self._formatear_fecha(fecha),
+                        self._formatear_fecha(
+                            fecha
+                        ),
                         str(
                             nombre_ejercicio
                             or "Sin ejercicio"
@@ -496,7 +920,13 @@ class InterfazProgreso(InterfazBase):
                             intensidad
                         ),
                         f"{calorias} kcal",
-                        str(observaciones or ""),
+                        planificadas,
+                        realizadas,
+                        f"{porcentaje:.2f}%",
+                        estado,
+                        str(
+                            observaciones or ""
+                        ),
                     ),
                 )
 
@@ -504,17 +934,20 @@ class InterfazProgreso(InterfazBase):
             traceback.print_exc()
 
             self._insertar_mensaje_sesiones(
-                "Error al cargar sesiones: "
-                f"{type(error).__name__}: {error}"
+                (
+                    "Error al cargar sesiones: "
+                    f"{type(error).__name__}: {error}"
+                )
             )
 
     def _cargar_historial_progreso(self) -> None:
         """
-        Carga el historial de progreso mensual.
+        Carga el historial mensual.
         """
         try:
             historial = (
-                self.controlador.consultar_progreso(
+                self.controlador
+                .consultar_progreso(
                     self._obtener_id_cliente()
                 )
             )
@@ -523,7 +956,7 @@ class InterfazProgreso(InterfazBase):
 
             if not historial:
                 self._insertar_mensaje_progreso(
-                    "Todavia no hay registros mensuales."
+                    "Todavía no hay registros mensuales."
                 )
                 return
 
@@ -549,7 +982,7 @@ class InterfazProgreso(InterfazBase):
                 planificadas = self._valor_sesion(
                     progreso,
                     "sesiones_planificadas",
-                    default=12,
+                    default=0,
                 )
 
                 cumplimiento = self._valor_sesion(
@@ -561,8 +994,8 @@ class InterfazProgreso(InterfazBase):
                 if cumplimiento is None:
                     cumplimiento = (
                         self._calcular_cumplimiento(
-                            completadas,
                             planificadas,
+                            completadas,
                         )
                     )
 
@@ -574,7 +1007,11 @@ class InterfazProgreso(InterfazBase):
                         f"{peso} kg",
                         completadas,
                         planificadas,
-                        f"{cumplimiento}%",
+                        (
+                            f"{self._formatear_porcentaje(
+                                cumplimiento
+                            )}"
+                        ),
                     ),
                 )
 
@@ -582,13 +1019,15 @@ class InterfazProgreso(InterfazBase):
             traceback.print_exc()
 
             self._insertar_mensaje_progreso(
-                "Error al cargar historial: "
-                f"{type(error).__name__}: {error}"
+                (
+                    "Error al cargar historial: "
+                    f"{type(error).__name__}: {error}"
+                )
             )
 
     def generarProgresoMensual(self) -> None:
         """
-        Genera o actualiza el progreso mensual.
+        Genera el progreso mensual.
         """
         peso = self._valor_sesion(
             self._cliente,
@@ -619,12 +1058,15 @@ class InterfazProgreso(InterfazBase):
             traceback.print_exc()
 
             self.mostrar_error(
-                "No se pudo generar el progreso mensual: "
-                f"{type(error).__name__}: {error}"
+                (
+                    "No se pudo generar el progreso mensual: "
+                    f"{type(error).__name__}: {error}"
+                )
             )
 
     def mostrarResumen(self) -> None:
         self._cargar_resumen()
+        self._actualizar_meta()
 
     def mostrarSesiones(self) -> None:
         self._cargar_sesiones()
@@ -639,80 +1081,7 @@ class InterfazProgreso(InterfazBase):
         self,
         resumen: dict,
     ) -> None:
-        """
-        Evalúa la meta del cliente.
-        """
-        objetivo = str(
-            getattr(
-                self._cliente,
-                "objetivo",
-                "",
-            ) or ""
-        ).lower()
-
-        peso_actual = self._valor_sesion(
-            self._cliente,
-            "peso",
-            default=None,
-        )
-
-        objetivo_peso = (
-            "bajar" in objetivo
-            or "perder" in objetivo
-            or "adelgazar" in objetivo
-            or "peso" in objetivo
-        )
-
-        if objetivo_peso:
-            try:
-                peso = float(peso_actual)
-            except (
-                TypeError,
-                ValueError,
-            ):
-                peso = None
-
-            if peso is not None and peso <= 75:
-                self._lbl_meta.config(
-                    text=(
-                        "META ALCANZADA! "
-                        f"Peso: {peso:g} kg"
-                    ),
-                    foreground="green",
-                )
-                return
-
-            if peso is not None:
-                self._lbl_meta.config(
-                    text=(
-                        "Meta no alcanzada. "
-                        f"Peso: {peso:g} kg "
-                        "(Meta: 75 kg)"
-                    ),
-                    foreground="red",
-                )
-                return
-
-        sesiones = self._convertir_entero(
-            resumen.get(
-                "total_sesiones",
-                0,
-            )
-        )
-
-        if sesiones >= 12:
-            self._lbl_meta.config(
-                text="META ALCANZADA! Sigue asi!",
-                foreground="green",
-            )
-        else:
-            self._lbl_meta.config(
-                text=(
-                    f"Progreso: {sesiones}/12 "
-                    "sesiones"
-                ),
-                foreground="red",
-            )
+        self._actualizar_meta()
 
     def _insertar_mensaje_sesiones(
         self,
@@ -723,6 +1092,10 @@ class InterfazProgreso(InterfazBase):
             "end",
             values=(
                 mensaje,
+                "",
+                "",
+                "",
+                "",
                 "",
                 "",
                 "",
@@ -749,7 +1122,7 @@ class InterfazProgreso(InterfazBase):
 
     def _obtener_id_cliente(self) -> int:
         """
-        Obtiene el identificador correcto del cliente.
+        Obtiene el identificador del cliente.
         """
         id_cliente = getattr(
             self._cliente,
@@ -771,6 +1144,7 @@ class InterfazProgreso(InterfazBase):
 
         try:
             id_cliente = int(id_cliente)
+
         except (
             TypeError,
             ValueError,
@@ -781,7 +1155,10 @@ class InterfazProgreso(InterfazBase):
 
         if id_cliente <= 0:
             raise ValueError(
-                "El identificador del cliente debe ser positivo."
+                (
+                    "El identificador del cliente "
+                    "debe ser positivo."
+                )
             )
 
         return id_cliente
@@ -801,20 +1178,18 @@ class InterfazProgreso(InterfazBase):
                 default,
             )
 
-        try:
-            return getattr(
-                objeto,
-                nombre,
-            )
-        except AttributeError:
-            return default
+        return getattr(
+            objeto,
+            nombre,
+            default,
+        )
 
     @staticmethod
     def _formatear_intensidad(
         valor: Any,
     ) -> str:
         """
-        Convierte intensidad o texto a texto.
+        Convierte intensidad a texto.
         """
         if isinstance(valor, Intensidad):
             return valor.value
@@ -867,40 +1242,133 @@ class InterfazProgreso(InterfazBase):
         return str(valor)
 
     @staticmethod
-    def _convertir_entero(
-        valor: Any,
-    ) -> int:
+    def _obtener_porcentaje_sesion(
+        sesion: Any,
+        planificadas: Any,
+        realizadas: Any,
+    ) -> float:
+        """
+        Obtiene el porcentaje de una sesión.
+        """
+        porcentaje = getattr(
+            sesion,
+            "porcentaje_cumplimiento",
+            None,
+        )
+
+        if callable(porcentaje):
+            try:
+                return float(porcentaje())
+            except Exception:
+                pass
+
+        if porcentaje is not None:
+            try:
+                return float(porcentaje)
+            except (
+                TypeError,
+                ValueError,
+            ):
+                pass
+
+        return InterfazProgreso._calcular_porcentaje(
+            planificadas,
+            realizadas,
+        )
+
+    @staticmethod
+    def _obtener_estado_sesion(
+        sesion: Any,
+        planificadas: Any,
+        realizadas: Any,
+    ) -> str:
+        """
+        Obtiene el estado calculado.
+        """
+        metodo = getattr(
+            sesion,
+            "obtener_estado_cumplimiento",
+            None,
+        )
+
+        if callable(metodo):
+            try:
+                return str(metodo())
+            except Exception:
+                pass
+
         try:
-            return int(valor)
+            planificadas_num = int(
+                planificadas
+            )
+
+            realizadas_num = int(
+                realizadas
+            )
+
+            if (
+                realizadas_num
+                >= planificadas_num
+            ):
+                return "COMPLETADA"
+
         except (
             TypeError,
             ValueError,
         ):
-            return 0
+            pass
+
+        return "PENDIENTE"
 
     @staticmethod
-    def _calcular_cumplimiento(
-        completadas: Any,
+    def _calcular_porcentaje(
         planificadas: Any,
-    ) -> str:
+        realizadas: Any,
+    ) -> float:
         try:
-            completadas_num = float(completadas)
-            planificadas_num = float(planificadas)
-
-            if planificadas_num <= 0:
-                return "0.00"
-
-            porcentaje = (
-                completadas_num
-                / planificadas_num
-                * 100
+            planificadas_num = float(
+                planificadas
             )
 
-            return f"{min(porcentaje, 100):.2f}"
+            realizadas_num = float(
+                realizadas
+            )
+
+            if planificadas_num <= 0:
+                return 0.0
+
+            return min(
+                realizadas_num
+                / planificadas_num
+                * 100,
+                100.0,
+            )
 
         except (
             TypeError,
             ValueError,
             ZeroDivisionError,
         ):
-            return "0.00"
+            return 0.0
+
+    @staticmethod
+    def _calcular_cumplimiento(
+        planificadas: Any,
+        realizadas: Any,
+    ) -> float:
+        return InterfazProgreso._calcular_porcentaje(
+            planificadas,
+            realizadas,
+        )
+
+    @staticmethod
+    def _formatear_porcentaje(
+        valor: Any,
+    ) -> str:
+        try:
+            return f"{float(valor):.2f}%"
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return "0.00%"

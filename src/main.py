@@ -1,17 +1,21 @@
 """
-Punto de entrada principal de la aplicación Cardio-Wellness.
+Punto de entrada principal de la aplicación
+Cardio-Wellness.
 """
 
 import sys
 from pathlib import Path
 
 
-# Permite ejecutar el proyecto desde la raíz:
-# python -m src.main
-ROOT_PROYECTO = Path(__file__).resolve().parent.parent
+ROOT_PROYECTO = (
+    Path(__file__).resolve().parent.parent
+)
 
 if str(ROOT_PROYECTO) not in sys.path:
-    sys.path.insert(0, str(ROOT_PROYECTO))
+    sys.path.insert(
+        0,
+        str(ROOT_PROYECTO),
+    )
 
 
 from src.controladores.control_autenticacion import (
@@ -33,23 +37,35 @@ from src.controladores.control_sesiones import (
     ControlSesiones,
 )
 
-from src.interfaz.interfaz_login import InterfazLogin
+from src.interfaz.interfaz_login import (
+    InterfazLogin,
+)
 
 from src.persistencia.asignacion_rutina_dao import (
     AsignacionRutinaDAO,
 )
-from src.persistencia.cliente_dao import ClienteDAO
-from src.persistencia.ejercicio_dao import EjercicioDAO
+from src.persistencia.cliente_dao import (
+    ClienteDAO,
+)
+from src.persistencia.ejercicio_dao import (
+    EjercicioDAO,
+)
 from src.persistencia.progreso_mensual_dao import (
     ProgresoMensualDAO,
 )
-from src.persistencia.rutina_dao import RutinaDAO
+from src.persistencia.rutina_dao import (
+    RutinaDAO,
+)
 from src.persistencia.sesion_entrenamiento_dao import (
     SesionEntrenamientoDAO,
 )
-from src.persistencia.usuario_dao import UsuarioDAO
+from src.persistencia.usuario_dao import (
+    UsuarioDAO,
+)
 
-from src.persistencia.conexion_bd import ConexionBD
+from src.persistencia.conexion_bd import (
+    ConexionBD,
+)
 
 
 def inicializar_sistema() -> dict:
@@ -57,24 +73,32 @@ def inicializar_sistema() -> dict:
     Inicializa la conexión, los DAO y los controladores.
     """
     print("=" * 60)
-    print("Sistema Cardio-Wellness - Gestion de Rutinas")
+    print(
+        "Sistema Cardio-Wellness - "
+        "Gestion de Rutinas"
+    )
     print("=" * 60)
 
     bd = ConexionBD.obtener_instancia()
 
     try:
         bd.abrir_conexion()
-        print("Conexion a base de datos inicializada")
+
+        print(
+            "Conexion a base de datos inicializada"
+        )
 
         if bd.verificar_integridad():
-            print("Integridad de la base de datos: OK")
-        else:
             print(
-                "Advertencia: verificacion de integridad "
-                "fallida"
+                "Integridad de la base de datos: OK"
             )
 
-        # Crear los DAO.
+        else:
+            print(
+                "Advertencia: verificacion de "
+                "integridad fallida"
+            )
+
         rutina_dao = RutinaDAO()
         asignacion_dao = AsignacionRutinaDAO()
         usuario_dao = UsuarioDAO()
@@ -83,7 +107,6 @@ def inicializar_sistema() -> dict:
         sesion_dao = SesionEntrenamientoDAO()
         progreso_dao = ProgresoMensualDAO()
 
-        # Crear los controladores.
         control_auth = ControlAutenticacion(
             usuario_dao
         )
@@ -105,14 +128,12 @@ def inicializar_sistema() -> dict:
             sesion_dao
         )
 
-        # IMPORTANTE:
-        # ControlProgreso necesita ambos DAO.
         control_progreso = ControlProgreso(
             progreso_dao=progreso_dao,
             sesion_dao=sesion_dao,
+            cliente_dao=cliente_dao,
         )
 
-        # Verificación temporal de las dependencias.
         print(
             "DAO de progreso:",
             type(
@@ -127,32 +148,61 @@ def inicializar_sistema() -> dict:
             ).__name__,
         )
 
+        print(
+            "DAO de clientes:",
+            type(
+                control_progreso.cliente_dao
+            ).__name__,
+        )
+
         controladores = {
             "control_auth": control_auth,
-            "control_clientes": control_clientes,
-            "control_ejercicios": control_ejercicios,
-            "control_rutinas": control_rutinas,
-            "control_sesiones": control_sesiones,
-            "control_progreso": control_progreso,
+            "control_autenticacion": (
+                control_auth
+            ),
+            "control_clientes": (
+                control_clientes
+            ),
+            "control_ejercicios": (
+                control_ejercicios
+            ),
+            "control_rutinas": (
+                control_rutinas
+            ),
+            "control_sesiones": (
+                control_sesiones
+            ),
+            "control_progreso": (
+                control_progreso
+            ),
         }
 
-        print("Controladores inicializados correctamente")
+        print(
+            "Controladores inicializados "
+            "correctamente"
+        )
+
         print("=" * 60)
 
         return controladores
 
     except Exception as error:
         print(
-            f"Error al inicializar el sistema: {error}"
+            "Error al inicializar el sistema: "
+            f"{error}"
         )
         raise
 
 
-def iniciar_interfaz(controladores: dict) -> None:
+def iniciar_interfaz(
+    controladores: dict,
+) -> None:
     """
     Crea y ejecuta la ventana de inicio de sesión.
     """
-    control_auth = controladores["control_auth"]
+    control_auth = controladores[
+        "control_auth"
+    ]
 
     app = InterfazLogin(
         control_autenticacion=control_auth,
@@ -169,13 +219,18 @@ def main() -> None:
     bd = None
 
     try:
-        controladores = inicializar_sistema()
+        controladores = (
+            inicializar_sistema()
+        )
+
         bd = ConexionBD.obtener_instancia()
 
         iniciar_interfaz(controladores)
 
     except KeyboardInterrupt:
-        print("\nAplicacion terminada por el usuario")
+        print(
+            "\nAplicacion terminada por el usuario"
+        )
 
     except Exception as error:
         print(
@@ -187,9 +242,11 @@ def main() -> None:
         try:
             if bd is not None:
                 bd.cerrar_conexion()
+
                 print(
                     "Conexion a base de datos cerrada"
                 )
+
         except Exception:
             pass
 

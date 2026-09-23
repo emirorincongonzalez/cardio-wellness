@@ -1,23 +1,27 @@
-﻿from datetime import date
+﻿from decimal import Decimal
 from typing import List, Optional, Tuple
 
 from psycopg2 import IntegrityError
 
 from src.modelos.cliente import Cliente
 from src.persistencia.conexion_bd import ConexionBD
-from src.servicios.gestor_seguridad import GestorSeguridad
+from src.servicios.gestor_seguridad import (
+    GestorSeguridad,
+)
 
 
 class ClienteDAO:
     """
     DAO para la entidad Cliente.
 
-    La contraseña debe llegar ya convertida a hash bcrypt
+    La contraseña debe llegar convertida a hash bcrypt
     dentro de cliente.contrasenia_hash.
     """
 
     def __init__(self) -> None:
-        self._bd = ConexionBD.obtener_instancia()
+        self._bd = (
+            ConexionBD.obtener_instancia()
+        )
 
     @staticmethod
     def _validar_hash(
@@ -31,22 +35,32 @@ class ClienteDAO:
             or not hash_guardado
         ):
             raise ValueError(
-                "El hash de la contraseña no puede "
-                "estar vacío."
+                (
+                    "El hash de la contraseña no puede "
+                    "estar vacío."
+                )
             )
 
         if not hash_guardado.startswith(
-            ("$2a$", "$2b$", "$2y$")
+            (
+                "$2a$",
+                "$2b$",
+                "$2y$",
+            )
         ):
             raise ValueError(
-                "La contraseña debe estar almacenada "
-                "como hash bcrypt."
+                (
+                    "La contraseña debe estar almacenada "
+                    "como hash bcrypt."
+                )
             )
 
         if len(hash_guardado) != 60:
             raise ValueError(
-                "El hash bcrypt debe tener 60 "
-                "caracteres."
+                (
+                    "El hash bcrypt debe tener 60 "
+                    "caracteres."
+                )
             )
 
     @staticmethod
@@ -54,7 +68,7 @@ class ClienteDAO:
         correo: str,
     ) -> str:
         """
-        Limpia y normaliza un correo electrónico.
+        Limpia y normaliza un correo.
         """
         if not isinstance(correo, str):
             raise ValueError(
@@ -70,24 +84,55 @@ class ClienteDAO:
 
         return correo_limpio
 
+    @staticmethod
+    def _normalizar_genero(
+        genero: str,
+    ) -> str:
+        """
+        Normaliza y valida el género.
+        """
+        if not isinstance(genero, str):
+            raise ValueError(
+                "El género debe ser texto."
+            )
+
+        genero_limpio = genero.strip().upper()
+
+        opciones_validas = {
+            "HOMBRE",
+            "MUJER",
+            "OTRO",
+            "PREFIERO NO DECIRLO",
+        }
+
+        if genero_limpio not in opciones_validas:
+            raise ValueError(
+                (
+                    "El género debe ser HOMBRE, MUJER, "
+                    "OTRO o PREFIERO NO DECIRLO."
+                )
+            )
+
+        return genero_limpio
+
     def guardar(
         self,
         cliente: Cliente,
     ) -> Cliente:
         """
         Guarda un cliente nuevo.
-
-        El hash bcrypt debe haber sido generado
-        previamente por ControlClientes.
         """
         if not isinstance(cliente, Cliente):
             raise TypeError(
-                "Debe proporcionar una instancia de Cliente."
+                (
+                    "Debe proporcionar una instancia "
+                    "de Cliente."
+                )
             )
 
-        hash_guardado = cliente.contrasenia_hash
-
-        self._validar_hash(hash_guardado)
+        self._validar_hash(
+            cliente.contrasenia_hash
+        )
 
         correo_limpio = (
             self._normalizar_correo(
@@ -95,11 +140,18 @@ class ClienteDAO:
             )
         )
 
+        genero_limpio = (
+            self._normalizar_genero(
+                cliente.genero
+            )
+        )
+
         self._bd.abrir_conexion()
 
         try:
             with self._bd._conexion.cursor() as cursor:
-                consulta_usuario = """
+                cursor.execute(
+                    """
                     INSERT INTO usuarios (
                         nombre,
                         apellido,
@@ -119,15 +171,12 @@ class ClienteDAO:
                     RETURNING
                         id_usuario,
                         fecha_registro
-                """
-
-                cursor.execute(
-                    consulta_usuario,
+                    """,
                     (
                         cliente.nombre.strip(),
                         cliente.apellido.strip(),
                         correo_limpio,
-                        hash_guardado,
+                        cliente.contrasenia_hash,
                         cliente.edad,
                         "cliente",
                     ),
@@ -139,8 +188,10 @@ class ClienteDAO:
 
                 if usuario_resultado is None:
                     raise RuntimeError(
-                        "No se pudo obtener el usuario "
-                        "creado."
+                        (
+                            "No se pudo obtener el usuario "
+                            "creado."
+                        )
                     )
 
                 cliente.id_usuario = (
@@ -151,24 +202,33 @@ class ClienteDAO:
                     usuario_resultado[1]
                 )
 
-                consulta_cliente = """
+                cursor.execute(
+                    """
                     INSERT INTO clientes (
                         id_usuario,
                         peso,
+                        peso_objetivo,
                         altura,
-                        objetivo
+                        objetivo,
+                        genero
                     )
-                    VALUES (%s, %s, %s, %s)
+                    VALUES (
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s
+                    )
                     RETURNING fecha_ingreso
-                """
-
-                cursor.execute(
-                    consulta_cliente,
+                    """,
                     (
                         cliente.id_usuario,
                         cliente.peso,
+                        cliente.peso_objetivo,
                         cliente.altura,
                         cliente.objetivo.strip(),
+                        genero_limpio,
                     ),
                 )
 
@@ -178,8 +238,10 @@ class ClienteDAO:
 
                 if cliente_resultado is None:
                     raise RuntimeError(
-                        "No se pudieron obtener los "
-                        "datos del cliente creado."
+                        (
+                            "No se pudieron obtener los "
+                            "datos del cliente creado."
+                        )
                     )
 
                 cliente.fecha_ingreso = (
@@ -204,8 +266,10 @@ class ClienteDAO:
                 ) from error
 
             raise RuntimeError(
-                "Error de integridad al guardar "
-                f"el cliente: {error}"
+                (
+                    "Error de integridad al guardar "
+                    f"el cliente: {error}"
+                )
             ) from error
 
         except Exception:
@@ -220,11 +284,13 @@ class ClienteDAO:
         Busca un cliente por su ID de usuario.
         """
         self._validar_id(id_usuario)
+
         self._bd.abrir_conexion()
 
         try:
             with self._bd._conexion.cursor() as cursor:
-                consulta = """
+                cursor.execute(
+                    """
                     SELECT
                         u.id_usuario,
                         u.nombre,
@@ -235,8 +301,10 @@ class ClienteDAO:
                         u.tipo_usuario,
                         u.fecha_registro,
                         c.peso,
+                        c.peso_objetivo,
                         c.altura,
                         c.objetivo,
+                        c.genero,
                         c.fecha_ingreso
                     FROM usuarios AS u
                     JOIN clientes AS c
@@ -245,10 +313,7 @@ class ClienteDAO:
                       AND LOWER(
                           CAST(u.tipo_usuario AS TEXT)
                       ) = 'cliente'
-                """
-
-                cursor.execute(
-                    consulta,
+                    """,
                     (id_usuario,),
                 )
 
@@ -257,9 +322,12 @@ class ClienteDAO:
             if fila is None:
                 return None
 
-            return self._crear_cliente_desde_fila(fila)
+            return self._crear_cliente_desde_fila(
+                fila
+            )
 
         except Exception:
+            self._bd._conexion.rollback()
             raise
 
     def buscar_por_correo(
@@ -277,7 +345,8 @@ class ClienteDAO:
 
         try:
             with self._bd._conexion.cursor() as cursor:
-                consulta = """
+                cursor.execute(
+                    """
                     SELECT
                         u.id_usuario,
                         u.nombre,
@@ -288,8 +357,10 @@ class ClienteDAO:
                         u.tipo_usuario,
                         u.fecha_registro,
                         c.peso,
+                        c.peso_objetivo,
                         c.altura,
                         c.objetivo,
+                        c.genero,
                         c.fecha_ingreso
                     FROM usuarios AS u
                     JOIN clientes AS c
@@ -301,10 +372,7 @@ class ClienteDAO:
                           CAST(u.tipo_usuario AS TEXT)
                       ) = 'cliente'
                     LIMIT 1
-                """
-
-                cursor.execute(
-                    consulta,
+                    """,
                     (correo_limpio,),
                 )
 
@@ -313,9 +381,12 @@ class ClienteDAO:
             if fila is None:
                 return None
 
-            return self._crear_cliente_desde_fila(fila)
+            return self._crear_cliente_desde_fila(
+                fila
+            )
 
         except Exception:
+            self._bd._conexion.rollback()
             raise
 
     def listar(self) -> List[Cliente]:
@@ -326,7 +397,8 @@ class ClienteDAO:
 
         try:
             with self._bd._conexion.cursor() as cursor:
-                consulta = """
+                cursor.execute(
+                    """
                     SELECT
                         u.id_usuario,
                         u.nombre,
@@ -337,8 +409,10 @@ class ClienteDAO:
                         u.tipo_usuario,
                         u.fecha_registro,
                         c.peso,
+                        c.peso_objetivo,
                         c.altura,
                         c.objetivo,
+                        c.genero,
                         c.fecha_ingreso
                     FROM usuarios AS u
                     JOIN clientes AS c
@@ -347,17 +421,20 @@ class ClienteDAO:
                         CAST(u.tipo_usuario AS TEXT)
                     ) = 'cliente'
                     ORDER BY u.id_usuario
-                """
+                    """
+                )
 
-                cursor.execute(consulta)
                 filas = cursor.fetchall()
 
             return [
-                self._crear_cliente_desde_fila(fila)
+                self._crear_cliente_desde_fila(
+                    fila
+                )
                 for fila in filas
             ]
 
         except Exception:
+            self._bd._conexion.rollback()
             raise
 
     def actualizar(
@@ -369,13 +446,25 @@ class ClienteDAO:
         """
         if not isinstance(cliente, Cliente):
             raise TypeError(
-                "Debe proporcionar una instancia de Cliente."
+                (
+                    "Debe proporcionar una instancia "
+                    "de Cliente."
+                )
             )
 
-        self._validar_id(cliente.id_usuario)
+        self._validar_id(
+            cliente.id_usuario
+        )
+
         correo_limpio = (
             self._normalizar_correo(
                 cliente.correo_electronico
+            )
+        )
+
+        genero_limpio = (
+            self._normalizar_genero(
+                cliente.genero
             )
         )
 
@@ -383,7 +472,8 @@ class ClienteDAO:
 
         try:
             with self._bd._conexion.cursor() as cursor:
-                consulta_usuario = """
+                cursor.execute(
+                    """
                     UPDATE usuarios
                     SET
                         nombre = %s,
@@ -394,10 +484,7 @@ class ClienteDAO:
                       AND LOWER(
                           CAST(tipo_usuario AS TEXT)
                       ) = 'cliente'
-                """
-
-                cursor.execute(
-                    consulta_usuario,
+                    """,
                     (
                         cliente.nombre.strip(),
                         cliente.apellido.strip(),
@@ -412,29 +499,33 @@ class ClienteDAO:
                         "No se encontró el cliente."
                     )
 
-                consulta_cliente = """
+                cursor.execute(
+                    """
                     UPDATE clientes
                     SET
                         peso = %s,
+                        peso_objetivo = %s,
                         altura = %s,
-                        objetivo = %s
+                        objetivo = %s,
+                        genero = %s
                     WHERE id_usuario = %s
-                """
-
-                cursor.execute(
-                    consulta_cliente,
+                    """,
                     (
                         cliente.peso,
+                        cliente.peso_objetivo,
                         cliente.altura,
                         cliente.objetivo.strip(),
+                        genero_limpio,
                         cliente.id_usuario,
                     ),
                 )
 
                 if cursor.rowcount == 0:
                     raise ValueError(
-                        "No se encontraron los datos "
-                        "del cliente."
+                        (
+                            "No se encontraron los datos "
+                            "del cliente."
+                        )
                     )
 
             self._bd._conexion.commit()
@@ -450,9 +541,60 @@ class ClienteDAO:
                 ) from error
 
             raise RuntimeError(
-                "Error de integridad al actualizar "
-                f"el cliente: {error}"
+                (
+                    "Error de integridad al actualizar "
+                    f"el cliente: {error}"
+                )
             ) from error
+
+        except Exception:
+            self._bd._conexion.rollback()
+            raise
+
+    def actualizar_peso(
+        self,
+        id_usuario: int,
+        nuevo_peso,
+    ) -> bool:
+        """
+        Actualiza solamente el peso actual.
+        """
+        self._validar_id(id_usuario)
+
+        if (
+            nuevo_peso is None
+            or nuevo_peso <= 0
+        ):
+            raise ValueError(
+                (
+                    "El nuevo peso debe ser "
+                    "mayor que cero."
+                )
+            )
+
+        self._bd.abrir_conexion()
+
+        try:
+            with self._bd._conexion.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE clientes
+                    SET peso = %s
+                    WHERE id_usuario = %s
+                    """,
+                    (
+                        nuevo_peso,
+                        id_usuario,
+                    ),
+                )
+
+                actualizado = (
+                    cursor.rowcount > 0
+                )
+
+            self._bd._conexion.commit()
+
+            return actualizado
 
         except Exception:
             self._bd._conexion.rollback()
@@ -477,7 +619,10 @@ class ClienteDAO:
             or not contrasenia_actual
         ):
             raise ValueError(
-                "La contraseña actual es obligatoria."
+                (
+                    "La contraseña actual es "
+                    "obligatoria."
+                )
             )
 
         if (
@@ -488,8 +633,10 @@ class ClienteDAO:
             or not nueva_contrasenia
         ):
             raise ValueError(
-                "La nueva contraseña no puede estar "
-                "vacía."
+                (
+                    "La nueva contraseña no puede "
+                    "estar vacía."
+                )
             )
 
         if not GestorSeguridad.validar_fortaleza_contrasena(
@@ -549,7 +696,9 @@ class ClienteDAO:
                     ),
                 )
 
-                actualizado = cursor.rowcount > 0
+                actualizado = (
+                    cursor.rowcount > 0
+                )
 
             self._bd._conexion.commit()
 
@@ -567,6 +716,7 @@ class ClienteDAO:
         Elimina un cliente por ID.
         """
         self._validar_id(id_usuario)
+
         self._bd.abrir_conexion()
 
         try:
@@ -582,7 +732,9 @@ class ClienteDAO:
                     (id_usuario,),
                 )
 
-                eliminado = cursor.rowcount > 0
+                eliminado = (
+                    cursor.rowcount > 0
+                )
 
             self._bd._conexion.commit()
 
@@ -598,27 +750,48 @@ class ClienteDAO:
     ) -> Cliente:
         """
         Convierte una fila de PostgreSQL en Cliente.
+
+        Orden esperado:
+        0  id_usuario
+        1  nombre
+        2  apellido
+        3  correo_electronico
+        4  contrasenia_hash
+        5  edad
+        6  tipo_usuario
+        7  fecha_registro
+        8  peso
+        9  peso_objetivo
+        10 altura
+        11 objetivo
+        12 genero
+        13 fecha_ingreso
         """
-        cliente = Cliente(
+        peso_objetivo = fila[9]
+
+        if peso_objetivo is None:
+            peso_objetivo = fila[8]
+
+        genero = fila[12]
+
+        if genero is None or not str(genero).strip():
+            genero = "PREFIERO NO DECIRLO"
+
+        return Cliente(
             id_usuario=fila[0],
             nombre=fila[1],
             apellido=fila[2],
             correo_electronico=fila[3],
             contrasenia_hash=fila[4],
             edad=fila[5],
+            genero=str(genero),
             peso=fila[8],
-            altura=fila[9],
-            objetivo=fila[10],
+            peso_objetivo=peso_objetivo,
+            altura=fila[10],
+            objetivo=fila[11],
             fecha_registro=fila[7],
+            fecha_ingreso=fila[13],
         )
-
-        cliente._fecha_ingreso = (
-            fila[11]
-            if fila[11] is not None
-            else date.today()
-        )
-
-        return cliente
 
     @staticmethod
     def _validar_id(
@@ -633,6 +806,8 @@ class ClienteDAO:
             or id_usuario <= 0
         ):
             raise ValueError(
-                "El ID de usuario debe ser un entero "
-                "positivo."
+                (
+                    "El ID de usuario debe ser un "
+                    "entero positivo."
+                )
             )

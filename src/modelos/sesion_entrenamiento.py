@@ -7,8 +7,10 @@ from src.modelos.enums import Intensidad
 
 class SesionEntrenamiento:
     """
-    Representa una sesión de entrenamiento realizada
-    por un cliente dentro de una rutina.
+    Representa una sesión de entrenamiento de un cliente.
+
+    La sesión se considera completada automáticamente cuando
+    las veces realizadas alcanzan las veces planificadas.
     """
 
     def __init__(
@@ -25,11 +27,13 @@ class SesionEntrenamiento:
             Decimal,
         ],
         observaciones: str = "",
-        completada: bool = False,
+        completada: Optional[bool] = None,
         id_sesion: Optional[int] = None,
         id_cliente: Optional[int] = None,
         id_rutina: Optional[int] = None,
         nombre_ejercicio: str = "",
+        veces_planificadas: int = 1,
+        veces_realizadas: int = 0,
     ) -> None:
         self.id_sesion = id_sesion
         self.id_cliente = id_cliente
@@ -40,7 +44,35 @@ class SesionEntrenamiento:
         self.intensidad_real = intensidad_real
         self.calorias_quemadas = calorias_quemadas
         self.observaciones = observaciones
-        self.completada = completada
+
+        self.veces_planificadas = (
+            veces_planificadas
+        )
+
+        self.veces_realizadas = (
+            veces_realizadas
+        )
+
+        # Se conserva el parámetro por compatibilidad
+        # con código antiguo, pero el estado real se
+        # calcula mediante la propiedad completada.
+        if completada is not None:
+            if not isinstance(
+                completada,
+                bool,
+            ):
+                raise ValueError(
+                    "Completada debe ser un booleano."
+                )
+
+            if completada != self.completada:
+                raise ValueError(
+                    (
+                        "El valor de completada no coincide "
+                        "con las veces realizadas y "
+                        "planificadas."
+                    )
+                )
 
     @property
     def id_sesion(self) -> Optional[int]:
@@ -52,14 +84,16 @@ class SesionEntrenamiento:
         valor: Optional[int],
     ) -> None:
         if valor is not None:
-            if isinstance(valor, bool):
+            if (
+                isinstance(valor, bool)
+                or not isinstance(valor, int)
+                or valor <= 0
+            ):
                 raise ValueError(
-                    "El ID de sesión debe ser entero."
-                )
-
-            if not isinstance(valor, int) or valor <= 0:
-                raise ValueError(
-                    "El ID de sesión debe ser positivo."
+                    (
+                        "El ID de sesión debe ser "
+                        "un entero positivo."
+                    )
                 )
 
         self._id_sesion = valor
@@ -74,14 +108,16 @@ class SesionEntrenamiento:
         valor: Optional[int],
     ) -> None:
         if valor is not None:
-            if isinstance(valor, bool):
+            if (
+                isinstance(valor, bool)
+                or not isinstance(valor, int)
+                or valor <= 0
+            ):
                 raise ValueError(
-                    "El ID de cliente debe ser entero."
-                )
-
-            if not isinstance(valor, int) or valor <= 0:
-                raise ValueError(
-                    "El ID de cliente debe ser positivo."
+                    (
+                        "El ID de cliente debe ser "
+                        "un entero positivo."
+                    )
                 )
 
         self._id_cliente = valor
@@ -99,14 +135,16 @@ class SesionEntrenamiento:
         Puede ser None para sesiones antiguas.
         """
         if valor is not None:
-            if isinstance(valor, bool):
+            if (
+                isinstance(valor, bool)
+                or not isinstance(valor, int)
+                or valor <= 0
+            ):
                 raise ValueError(
-                    "El ID de rutina debe ser entero."
-                )
-
-            if not isinstance(valor, int) or valor <= 0:
-                raise ValueError(
-                    "El ID de rutina debe ser positivo."
+                    (
+                        "El ID de rutina debe ser "
+                        "un entero positivo."
+                    )
                 )
 
         self._id_rutina = valor
@@ -139,24 +177,26 @@ class SesionEntrenamiento:
         self,
         valor: str,
     ) -> None:
-        """
-        Nombre del ejercicio realizado.
-        """
         if valor is None:
             self._nombre_ejercicio = ""
             return
 
         if not isinstance(valor, str):
             raise ValueError(
-                "El nombre del ejercicio debe ser texto."
+                (
+                    "El nombre del ejercicio "
+                    "debe ser texto."
+                )
             )
 
         nombre = valor.strip()
 
         if len(nombre) > 100:
             raise ValueError(
-                "El nombre del ejercicio no puede superar "
-                "100 caracteres."
+                (
+                    "El nombre del ejercicio no puede "
+                    "superar 100 caracteres."
+                )
             )
 
         self._nombre_ejercicio = nombre
@@ -175,22 +215,17 @@ class SesionEntrenamiento:
                 "La duración debe ser un entero."
             )
 
-        try:
-            duracion = int(valor)
-        except (
-            TypeError,
-            ValueError,
-        ) as error:
+        if not isinstance(valor, int):
             raise ValueError(
                 "La duración debe ser un entero."
-            ) from error
+            )
 
-        if duracion <= 0:
+        if valor <= 0:
             raise ValueError(
                 "La duración debe ser mayor que cero."
             )
 
-        self._duracion_real = duracion
+        self._duracion_real = valor
 
     @property
     def intensidad_real(self) -> Intensidad:
@@ -216,11 +251,23 @@ class SesionEntrenamiento:
         texto = valor.strip().upper()
 
         try:
-            self._intensidad_real = Intensidad(texto)
-        except ValueError as error:
-            raise ValueError(
-                f"Intensidad inválida: {valor!r}"
-            ) from error
+            self._intensidad_real = (
+                Intensidad[texto]
+            )
+
+        except KeyError:
+            try:
+                self._intensidad_real = (
+                    Intensidad(texto)
+                )
+
+            except ValueError as error:
+                raise ValueError(
+                    (
+                        "Intensidad inválida. Debe ser "
+                        "BAJA, MEDIA o ALTA."
+                    )
+                ) from error
 
     @property
     def calorias_quemadas(self) -> Decimal:
@@ -242,6 +289,7 @@ class SesionEntrenamiento:
 
         try:
             calorias = Decimal(str(valor))
+
         except (
             InvalidOperation,
             TypeError,
@@ -267,50 +315,154 @@ class SesionEntrenamiento:
         self,
         valor: str,
     ) -> None:
-        self._observaciones = (
-            valor.strip()
-            if isinstance(valor, str)
-            else ""
-        )
+        if valor is None:
+            self._observaciones = ""
+            return
+
+        if not isinstance(valor, str):
+            raise ValueError(
+                "Las observaciones deben ser texto."
+            )
+
+        self._observaciones = valor.strip()
+
+    @property
+    def veces_planificadas(self) -> int:
+        return self._veces_planificadas
+
+    @veces_planificadas.setter
+    def veces_planificadas(
+        self,
+        valor: int,
+    ) -> None:
+        if (
+            isinstance(valor, bool)
+            or not isinstance(valor, int)
+            or valor <= 0
+        ):
+            raise ValueError(
+                (
+                    "Las veces planificadas deben ser "
+                    "un entero mayor que cero."
+                )
+            )
+
+        if hasattr(
+            self,
+            "_veces_realizadas",
+        ):
+            if valor < self._veces_realizadas:
+                raise ValueError(
+                    (
+                        "Las veces planificadas no pueden "
+                        "ser menores que las realizadas."
+                    )
+                )
+
+        self._veces_planificadas = valor
+
+    @property
+    def veces_realizadas(self) -> int:
+        return self._veces_realizadas
+
+    @veces_realizadas.setter
+    def veces_realizadas(
+        self,
+        valor: int,
+    ) -> None:
+        if (
+            isinstance(valor, bool)
+            or not isinstance(valor, int)
+            or valor < 0
+        ):
+            raise ValueError(
+                (
+                    "Las veces realizadas deben ser "
+                    "un entero igual o mayor que cero."
+                )
+            )
+
+        if hasattr(
+            self,
+            "_veces_planificadas",
+        ):
+            if valor > self._veces_planificadas:
+                raise ValueError(
+                    (
+                        "Las veces realizadas no pueden "
+                        "superar las planificadas."
+                    )
+                )
+
+        self._veces_realizadas = valor
 
     @property
     def completada(self) -> bool:
-        return self._completada
+        """
+        Calcula automáticamente el estado.
+        """
+        return (
+            self.veces_realizadas
+            >= self.veces_planificadas
+        )
 
-    @completada.setter
-    def completada(
+    @property
+    def porcentaje_cumplimiento(self) -> float:
+        """
+        Devuelve el porcentaje de cumplimiento.
+        """
+        if self.veces_planificadas <= 0:
+            return 0.0
+
+        porcentaje = (
+            self.veces_realizadas
+            / self.veces_planificadas
+            * 100
+        )
+
+        return round(
+            min(porcentaje, 100.0),
+            2,
+        )
+
+    def registrar_resultado(
         self,
-        valor: bool,
+        veces_realizadas: int,
     ) -> None:
-        if not isinstance(valor, bool):
-            raise ValueError(
-                "Completada debe ser un booleano."
-            )
-
-        self._completada = valor
-
-    def registrar_resultado(self) -> None:
         """
-        Marca la sesión como completada.
+        Actualiza las veces realizadas.
         """
-        self.completada = True
+        self.veces_realizadas = (
+            veces_realizadas
+        )
 
     def marcar_como_completada(self) -> None:
         """
-        Marca la sesión como completada.
+        Verifica que la sesión haya cumplido la meta.
         """
-        self.completada = True
+        if not self.completada:
+            raise ValueError(
+                (
+                    "La sesión no puede marcarse como "
+                    "completada: se realizaron "
+                    f"{self.veces_realizadas} de "
+                    f"{self.veces_planificadas} veces."
+                )
+            )
+
+    def obtener_estado_cumplimiento(self) -> str:
+        """
+        Devuelve el estado de cumplimiento.
+        """
+        if self.completada:
+            return "COMPLETADA"
+
+        return "PENDIENTE"
 
     def obtener_resumen(self) -> str:
         """
-        Devuelve un resumen legible de la sesión.
+        Devuelve un resumen legible.
         """
-        estado = (
-            "Completada"
-            if self.completada
-            else "Pendiente"
-        )
-
         rutina = (
             str(self.id_rutina)
             if self.id_rutina is not None
@@ -323,17 +475,23 @@ class SesionEntrenamiento:
         )
 
         return (
-            f"Sesion {self.id_sesion} | "
+            f"Sesión {self.id_sesion} | "
             f"Cliente: {self.id_cliente} | "
             f"Rutina: {rutina} | "
             f"Ejercicio: {ejercicio} | "
             f"Fecha: {self.fecha} | "
-            f"Duracion: {self.duracion_real} min | "
+            f"Duración: {self.duracion_real} min | "
             f"Intensidad: "
             f"{self.intensidad_real.value} | "
-            f"Calorias: "
+            f"Calorías: "
             f"{self.calorias_quemadas:.2f} | "
-            f"Estado: {estado}"
+            f"Realizadas: "
+            f"{self.veces_realizadas}/"
+            f"{self.veces_planificadas} | "
+            f"Cumplimiento: "
+            f"{self.porcentaje_cumplimiento:.2f}% | "
+            f"Estado: "
+            f"{self.obtener_estado_cumplimiento()}"
         )
 
     def __repr__(self) -> str:
@@ -343,13 +501,17 @@ class SesionEntrenamiento:
             f"id_cliente={self.id_cliente}, "
             f"id_rutina={self.id_rutina}, "
             f"fecha={self.fecha}, "
-            f"nombre_ejercicio="
+            "nombre_ejercicio="
             f"'{self.nombre_ejercicio}', "
             f"duracion_real={self.duracion_real}, "
             "intensidad_real="
             f"'{self.intensidad_real.value}', "
             f"calorias_quemadas="
             f"{self.calorias_quemadas}, "
+            "veces_planificadas="
+            f"{self.veces_planificadas}, "
+            "veces_realizadas="
+            f"{self.veces_realizadas}, "
             f"completada={self.completada}"
             ")"
         )

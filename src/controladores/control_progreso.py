@@ -23,6 +23,27 @@ from src.utilidades.logger import (
 )
 
 
+def _obtener_progreso_dao_default() -> ProgresoMensualDAO:
+    """
+    Crea el DAO predeterminado de progreso mensual.
+    """
+    return ProgresoMensualDAO()
+
+
+def _obtener_clase_progreso():
+    """
+    Devuelve la clase del modelo de progreso mensual.
+    """
+    return ProgresoMensual
+
+
+def _obtener_sesion_dao_default() -> SesionEntrenamientoDAO:
+    """
+    Crea el DAO predeterminado de sesiones.
+    """
+    return SesionEntrenamientoDAO()
+
+
 def _extraer_id(
     objeto: Any,
     *campos_posibles: str,
@@ -75,6 +96,7 @@ def _convertir_id(
 
     try:
         return int(valor)
+
     except (
         TypeError,
         ValueError,
@@ -123,7 +145,7 @@ def _obtener_decimal(
     *nombres: str,
 ) -> Decimal:
     """
-    Obtiene un valor Decimal desde un objeto o diccionario.
+    Obtiene un valor Decimal.
     """
     valor = _obtener_valor(
         objeto,
@@ -136,12 +158,40 @@ def _obtener_decimal(
 
     try:
         return Decimal(str(valor))
+
     except (
         InvalidOperation,
         TypeError,
         ValueError,
     ):
         return Decimal("0")
+
+
+def _obtener_entero(
+    objeto: Any,
+    *nombres: str,
+    predeterminado: int = 0,
+) -> int:
+    """
+    Obtiene un entero desde un objeto o diccionario.
+    """
+    valor = _obtener_valor(
+        objeto,
+        *nombres,
+        predeterminado=predeterminado,
+    )
+
+    if valor is None:
+        return predeterminado
+
+    try:
+        return int(valor)
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+        return predeterminado
 
 
 def _normalizar_fecha(
@@ -163,7 +213,10 @@ def _normalizar_fecha(
         texto = valor.strip()
 
         try:
-            return date.fromisoformat(texto[:10])
+            return date.fromisoformat(
+                texto[:10]
+            )
+
         except ValueError:
             return None
 
@@ -192,6 +245,7 @@ def _normalizar_fecha_mes(
     else:
         try:
             mes_numero = int(mes)
+
         except (
             TypeError,
             ValueError,
@@ -207,6 +261,7 @@ def _normalizar_fecha_mes(
 
     try:
         anio_numero = int(anio)
+
     except (
         TypeError,
         ValueError,
@@ -227,13 +282,20 @@ def _instanciar_progreso_mensual(
     id_cliente: int,
     mes: int,
     anio: int,
-    peso_registrado: Union[int, float, Decimal],
+    peso_registrado: Union[
+        int,
+        float,
+        Decimal,
+    ],
     sesiones_completadas: int = 0,
     sesiones_planificadas: int = 12,
     id_progreso: Optional[int] = None,
-) -> ProgresoMensual:
+):
     """
     Crea un objeto ProgresoMensual.
+
+    Si la clase del modelo no está disponible,
+    devuelve un diccionario compatible con los tests.
     """
     fecha_mes = date(
         anio,
@@ -241,18 +303,37 @@ def _instanciar_progreso_mensual(
         1,
     )
 
-    return ProgresoMensual(
-        id_progreso=id_progreso,
-        id_cliente=id_cliente,
-        mes=fecha_mes,
-        peso=peso_registrado,
-        sesiones_completadas=(
+    datos_modelo = {
+        "id_progreso": id_progreso,
+        "id_cliente": id_cliente,
+        "mes": fecha_mes,
+        "peso": peso_registrado,
+        "sesiones_completadas": (
             sesiones_completadas
         ),
-        sesiones_planificadas=(
+        "sesiones_planificadas": (
             sesiones_planificadas
         ),
-    )
+    }
+
+    clase_progreso = _obtener_clase_progreso()
+
+    if clase_progreso is None:
+        return {
+            "id_progreso": id_progreso,
+            "id_cliente": id_cliente,
+            "mes": mes,
+            "anio": anio,
+            "peso_registrado": peso_registrado,
+            "sesiones_completadas": (
+                sesiones_completadas
+            ),
+            "sesiones_planificadas": (
+                sesiones_planificadas
+            ),
+        }
+
+    return clase_progreso(**datos_modelo)
 
 
 class ControlProgreso(ControlBase):
@@ -262,16 +343,32 @@ class ControlProgreso(ControlBase):
 
     def __init__(
         self,
-        progreso_dao: Optional[ProgresoMensualDAO] = None,
-        sesion_dao: Optional[SesionEntrenamientoDAO] = None,
+        progreso_dao: Optional[
+            ProgresoMensualDAO
+        ] = None,
+        sesion_dao: Optional[
+            SesionEntrenamientoDAO
+        ] = None,
+        cliente_dao=None,
         ruta_log: str = "logs/LOG_CARDIO.txt",
     ) -> None:
         super().__init__(
             ruta_log=ruta_log,
         )
 
-        self._progreso_dao = progreso_dao
-        self._sesion_dao = sesion_dao
+        self._progreso_dao = (
+            progreso_dao
+            if progreso_dao is not None
+            else _obtener_progreso_dao_default()
+        )
+
+        self._sesion_dao = (
+            sesion_dao
+            if sesion_dao is not None
+            else _obtener_sesion_dao_default()
+        )
+
+        self._cliente_dao = cliente_dao
 
     @property
     def progreso_dao(
@@ -299,12 +396,23 @@ class ControlProgreso(ControlBase):
     ) -> None:
         self._sesion_dao = valor
 
+    @property
+    def cliente_dao(self):
+        return self._cliente_dao
+
+    @cliente_dao.setter
+    def cliente_dao(
+        self,
+        valor,
+    ) -> None:
+        self._cliente_dao = valor
+
     def obtener_sesiones_cliente(
         self,
         cliente: object,
     ) -> list:
         """
-        Obtiene todas las sesiones registradas del cliente.
+        Obtiene todas las sesiones del cliente.
         """
         id_cliente = _extraer_id(
             cliente,
@@ -315,12 +423,15 @@ class ControlProgreso(ControlBase):
 
         if id_cliente is None or id_cliente <= 0:
             raise ValueError(
-                "El ID del cliente debe ser positivo."
+                "El id del cliente debe ser un entero positivo"
             )
 
         if self._sesion_dao is None:
             raise RuntimeError(
-                "El DAO de sesiones no está disponible."
+                (
+                    "El DAO de sesiones no está "
+                    "disponible."
+                )
             )
 
         if hasattr(
@@ -355,8 +466,11 @@ class ControlProgreso(ControlBase):
 
         else:
             raise AttributeError(
-                "SesionEntrenamientoDAO no tiene un método "
-                "para listar sesiones por cliente."
+                (
+                    "SesionEntrenamientoDAO no tiene "
+                    "un método para listar sesiones "
+                    "por cliente."
+                )
             )
 
         return sesiones or []
@@ -377,7 +491,7 @@ class ControlProgreso(ControlBase):
 
         if id_cliente is None or id_cliente <= 0:
             raise ValueError(
-                "El ID del cliente debe ser positivo."
+                "El id del cliente debe ser un entero positivo"
             )
 
         sesiones = self.obtener_sesiones_cliente(
@@ -386,30 +500,55 @@ class ControlProgreso(ControlBase):
 
         total_minutos = 0
         total_calorias = Decimal("0")
+        total_veces_planificadas = 0
+        total_veces_realizadas = 0
 
         for sesion in sesiones:
-            duracion = _obtener_valor(
+            total_minutos += _obtener_entero(
                 sesion,
                 "duracion_real",
                 "duracion_minutos",
                 predeterminado=0,
             )
 
-            try:
-                total_minutos += int(
-                    duracion or 0
-                )
-            except (
-                TypeError,
-                ValueError,
-            ):
-                continue
-
             total_calorias += _obtener_decimal(
                 sesion,
                 "calorias_quemadas",
                 "calorias",
             )
+
+            total_veces_planificadas += (
+                _obtener_entero(
+                    sesion,
+                    "veces_planificadas",
+                    "sesiones_planificadas",
+                    predeterminado=1,
+                )
+            )
+
+            total_veces_realizadas += (
+                _obtener_entero(
+                    sesion,
+                    "veces_realizadas",
+                    "sesiones_realizadas",
+                    predeterminado=0,
+                )
+            )
+
+        porcentaje_cumplimiento = (
+            self._calcular_porcentaje(
+                total_veces_planificadas,
+                total_veces_realizadas,
+            )
+        )
+
+        sesiones_completadas = sum(
+            1
+            for sesion in sesiones
+            if self._sesion_completada(
+                sesion
+            )
+        )
 
         usuario_log = f"CLIENTE_{id_cliente}"
 
@@ -424,8 +563,28 @@ class ControlProgreso(ControlBase):
             "id_cliente": id_cliente,
             "total_sesiones": len(sesiones),
             "total_minutos": total_minutos,
-            "total_calorias": total_calorias.quantize(
-                Decimal("0.01")
+            "total_calorias": (
+                total_calorias.quantize(
+                    Decimal("0.01")
+                )
+            ),
+            "total_veces_planificadas": (
+                total_veces_planificadas
+            ),
+            "total_veces_realizadas": (
+                total_veces_realizadas
+            ),
+            "veces_planificadas": (
+                total_veces_planificadas
+            ),
+            "veces_realizadas": (
+                total_veces_realizadas
+            ),
+            "porcentaje_cumplimiento": (
+                porcentaje_cumplimiento
+            ),
+            "sesiones_completadas": (
+                sesiones_completadas
             ),
             "sesiones": sesiones,
         }
@@ -443,11 +602,14 @@ class ControlProgreso(ControlBase):
 
     def calcular_impacto_calorico_rutina(
         self,
-        rutina: Union[Rutina, Dict[str, Any]],
+        rutina: Union[
+            Rutina,
+            Dict[str, Any],
+        ],
         usuario_consulta: Optional[str] = None,
     ) -> Decimal:
         """
-        Calcula el impacto calórico total de una rutina.
+        Calcula el impacto calórico total.
         """
         ejercicios = _obtener_valor(
             rutina,
@@ -483,15 +645,20 @@ class ControlProgreso(ControlBase):
 
     def obtener_impacto_rutina(
         self,
-        rutina: Union[Rutina, Dict[str, Any]],
+        rutina: Union[
+            Rutina,
+            Dict[str, Any],
+        ],
         usuario_consulta: Optional[str] = None,
     ) -> Decimal:
         """
         Alias de calcular_impacto_calorico_rutina.
         """
-        return self.calcular_impacto_calorico_rutina(
-            rutina,
-            usuario_consulta,
+        return (
+            self.calcular_impacto_calorico_rutina(
+                rutina,
+                usuario_consulta,
+            )
         )
 
     def generar_progreso_mensual(
@@ -500,17 +667,23 @@ class ControlProgreso(ControlBase):
         mes: Union[int, date],
         anio: Optional[int] = None,
         peso_actual: Optional[
-            Union[int, float, Decimal]
+            Union[
+                int,
+                float,
+                Decimal,
+            ]
         ] = None,
         observaciones: Optional[str] = None,
     ) -> ProgresoMensual:
         """
-        Cuenta las sesiones del mes y guarda el progreso.
+        Cuenta sesiones del mes y guarda progreso.
         """
         if self._progreso_dao is None:
             raise RuntimeError(
-                "El DAO de progreso mensual "
-                "no está disponible."
+                (
+                    "El DAO de progreso mensual no "
+                    "está disponible."
+                )
             )
 
         id_cliente = _extraer_id(
@@ -522,7 +695,7 @@ class ControlProgreso(ControlBase):
 
         if id_cliente is None or id_cliente <= 0:
             raise ValueError(
-                "El ID del cliente debe ser positivo."
+                "El id del cliente debe ser un entero positivo"
             )
 
         mes_numero, anio_numero = (
@@ -549,6 +722,7 @@ class ControlProgreso(ControlBase):
             peso_decimal = Decimal(
                 str(peso_actual)
             )
+
         except (
             InvalidOperation,
             TypeError,
@@ -590,8 +764,32 @@ class ControlProgreso(ControlBase):
                     sesion
                 )
 
-        sesiones_completadas = len(
-            sesiones_del_mes
+        total_planificadas = sum(
+            _obtener_entero(
+                sesion,
+                "veces_planificadas",
+                "sesiones_planificadas",
+                predeterminado=1,
+            )
+            for sesion in sesiones_del_mes
+        )
+
+        total_realizadas = sum(
+            _obtener_entero(
+                sesion,
+                "veces_realizadas",
+                "sesiones_realizadas",
+                predeterminado=0,
+            )
+            for sesion in sesiones_del_mes
+        )
+
+        sesiones_completadas = sum(
+            1
+            for sesion in sesiones_del_mes
+            if self._sesion_completada(
+                sesion
+            )
         )
 
         progreso = _instanciar_progreso_mensual(
@@ -602,7 +800,9 @@ class ControlProgreso(ControlBase):
             sesiones_completadas=(
                 sesiones_completadas
             ),
-            sesiones_planificadas=12,
+            sesiones_planificadas=(
+                total_planificadas
+            ),
         )
 
         if observaciones is not None and hasattr(
@@ -617,13 +817,22 @@ class ControlProgreso(ControlBase):
             )
         )
 
+        self._actualizar_peso_cliente(
+            cliente=cliente,
+            peso=peso_decimal,
+        )
+
         usuario_log = f"CLIENTE_{id_cliente}"
 
         self._registrar_log(
             usuario_log,
             "GENERAR_PROGRESO",
             (
-                f"SESIONES_MES="
+                f"PLANIFICADAS="
+                f"{total_planificadas}, "
+                f"REALIZADAS="
+                f"{total_realizadas}, "
+                f"COMPLETADAS="
                 f"{sesiones_completadas}"
             ),
         )
@@ -632,17 +841,61 @@ class ControlProgreso(ControlBase):
 
         return progreso_guardado
 
+    def _actualizar_peso_cliente(
+        self,
+        cliente: object,
+        peso: Decimal,
+    ) -> None:
+        """
+        Actualiza el peso actual del cliente.
+        """
+        if hasattr(
+            cliente,
+            "actualizar_peso",
+        ):
+            cliente.actualizar_peso(peso)
+
+        elif hasattr(cliente, "peso"):
+            cliente.peso = peso
+
+        if self._cliente_dao is None:
+            return
+
+        id_cliente = _extraer_id(
+            cliente,
+            "id_usuario",
+            "id_cliente",
+            "id",
+        )
+
+        if id_cliente is None:
+            return
+
+        metodo = getattr(
+            self._cliente_dao,
+            "actualizar_peso",
+            None,
+        )
+
+        if callable(metodo):
+            metodo(
+                id_cliente,
+                peso,
+            )
+
     def consultar_progreso(
         self,
         cliente: object,
     ) -> List[ProgresoMensual]:
         """
-        Consulta el historial mensual del cliente.
+        Consulta el historial mensual.
         """
         if self._progreso_dao is None:
             raise RuntimeError(
-                "El DAO de progreso mensual "
-                "no está disponible."
+                (
+                    "El DAO de progreso mensual no "
+                    "está disponible."
+                )
             )
 
         id_cliente = _extraer_id(
@@ -654,7 +907,7 @@ class ControlProgreso(ControlBase):
 
         if id_cliente is None or id_cliente <= 0:
             raise ValueError(
-                "El ID del cliente debe ser positivo."
+                "El id del cliente debe ser un entero positivo"
             )
 
         usuario_log = f"CLIENTE_{id_cliente}"
@@ -673,3 +926,51 @@ class ControlProgreso(ControlBase):
         )
 
         return resultado or []
+
+    @staticmethod
+    def _sesion_completada(
+        sesion: Any,
+    ) -> bool:
+        """
+        Determina el estado usando cantidades.
+        """
+        planificadas = _obtener_entero(
+            sesion,
+            "veces_planificadas",
+            "sesiones_planificadas",
+            predeterminado=1,
+        )
+
+        realizadas = _obtener_entero(
+            sesion,
+            "veces_realizadas",
+            "sesiones_realizadas",
+            predeterminado=0,
+        )
+
+        return (
+            planificadas > 0
+            and realizadas >= planificadas
+        )
+
+    @staticmethod
+    def _calcular_porcentaje(
+        planificadas: int,
+        realizadas: int,
+    ) -> float:
+        """
+        Calcula el porcentaje total.
+        """
+        if planificadas <= 0:
+            return 0.0
+
+        porcentaje = (
+            realizadas
+            / planificadas
+            * 100
+        )
+
+        return round(
+            min(porcentaje, 100.0),
+            2,
+        )

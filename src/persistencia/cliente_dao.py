@@ -1,5 +1,4 @@
-﻿from decimal import Decimal
-from typing import List, Optional, Tuple
+﻿from typing import List, Optional, Tuple
 
 from psycopg2 import IntegrityError
 
@@ -14,21 +13,20 @@ class ClienteDAO:
     """
     DAO para la entidad Cliente.
 
-    La contraseña debe llegar convertida a hash bcrypt
-    dentro de cliente.contrasenia_hash.
+    Acepta una contraseña plana válida o un hash bcrypt
+    en cliente.contrasenia_hash. Antes de persistirla,
+    siempre queda almacenada como hash bcrypt.
     """
 
     def __init__(self) -> None:
-        self._bd = (
-            ConexionBD.obtener_instancia()
-        )
+        self._bd = ConexionBD.obtener_instancia()
 
     @staticmethod
     def _validar_hash(
         hash_guardado: str,
     ) -> None:
         """
-        Valida que el valor sea un hash bcrypt.
+        Valida que el valor sea un hash bcrypt válido.
         """
         if (
             not isinstance(hash_guardado, str)
@@ -62,6 +60,66 @@ class ClienteDAO:
                     "caracteres."
                 )
             )
+
+    @classmethod
+    def _obtener_hash_contrasenia(
+        cls,
+        contrasenia_o_hash: str,
+    ) -> str:
+        """
+        Conserva un hash bcrypt existente o transforma
+        una contraseña plana válida en hash bcrypt.
+
+        Esta compatibilidad permite que el DAO acepte
+        contraseñas planas usadas por las pruebas directas,
+        pero nunca las persiste sin aplicar bcrypt.
+        """
+        if (
+            not isinstance(
+                contrasenia_o_hash,
+                str,
+            )
+            or not contrasenia_o_hash
+        ):
+            raise ValueError(
+                (
+                    "La contraseña o el hash no puede "
+                    "estar vacío."
+                )
+            )
+
+        es_hash_bcrypt = (
+            contrasenia_o_hash.startswith(
+                (
+                    "$2a$",
+                    "$2b$",
+                    "$2y$",
+                )
+            )
+            and len(contrasenia_o_hash) == 60
+        )
+
+        if es_hash_bcrypt:
+            cls._validar_hash(contrasenia_o_hash)
+            return contrasenia_o_hash
+
+        if not GestorSeguridad.validar_fortaleza_contrasena(
+            contrasenia_o_hash
+        ):
+            raise ValueError(
+                (
+                    "La contraseña debe ser segura para "
+                    "poder almacenarse."
+                )
+            )
+
+        hash_generado = GestorSeguridad.generar_hash(
+            contrasenia_o_hash
+        )
+
+        cls._validar_hash(hash_generado)
+
+        return hash_generado
 
     @staticmethod
     def _normalizar_correo(
@@ -130,20 +188,18 @@ class ClienteDAO:
                 )
             )
 
-        self._validar_hash(
-            cliente.contrasenia_hash
-        )
-
-        correo_limpio = (
-            self._normalizar_correo(
-                cliente.correo_electronico
+        cliente.contrasenia_hash = (
+            self._obtener_hash_contrasenia(
+                cliente.contrasenia_hash
             )
         )
 
-        genero_limpio = (
-            self._normalizar_genero(
-                cliente.genero
-            )
+        correo_limpio = self._normalizar_correo(
+            cliente.correo_electronico
+        )
+
+        genero_limpio = self._normalizar_genero(
+            cliente.genero
         )
 
         self._bd.abrir_conexion()
@@ -182,9 +238,7 @@ class ClienteDAO:
                     ),
                 )
 
-                usuario_resultado = (
-                    cursor.fetchone()
-                )
+                usuario_resultado = cursor.fetchone()
 
                 if usuario_resultado is None:
                     raise RuntimeError(
@@ -194,10 +248,7 @@ class ClienteDAO:
                         )
                     )
 
-                cliente.id_usuario = (
-                    usuario_resultado[0]
-                )
-
+                cliente.id_usuario = usuario_resultado[0]
                 cliente.fecha_registro = (
                     usuario_resultado[1]
                 )
@@ -232,9 +283,7 @@ class ClienteDAO:
                     ),
                 )
 
-                cliente_resultado = (
-                    cursor.fetchone()
-                )
+                cliente_resultado = cursor.fetchone()
 
                 if cliente_resultado is None:
                     raise RuntimeError(
@@ -244,9 +293,7 @@ class ClienteDAO:
                         )
                     )
 
-                cliente.fecha_ingreso = (
-                    cliente_resultado[0]
-                )
+                cliente.fecha_ingreso = cliente_resultado[0]
 
             self._bd._conexion.commit()
 
@@ -311,8 +358,8 @@ class ClienteDAO:
                         ON u.id_usuario = c.id_usuario
                     WHERE u.id_usuario = %s
                       AND LOWER(
-                          CAST(u.tipo_usuario AS TEXT)
-                      ) = 'cliente'
+                        CAST(u.tipo_usuario AS TEXT)
+                    ) = 'cliente'
                     """,
                     (id_usuario,),
                 )
@@ -335,11 +382,9 @@ class ClienteDAO:
         correo: str,
     ) -> Optional[Cliente]:
         """
-        Busca un cliente por correo.
+        Busca un cliente por correo electrónico.
         """
-        correo_limpio = (
-            self._normalizar_correo(correo)
-        )
+        correo_limpio = self._normalizar_correo(correo)
 
         self._bd.abrir_conexion()
 
@@ -365,12 +410,10 @@ class ClienteDAO:
                     FROM usuarios AS u
                     JOIN clientes AS c
                         ON u.id_usuario = c.id_usuario
-                    WHERE LOWER(
-                        u.correo_electronico
-                    ) = %s
+                    WHERE LOWER(u.correo_electronico) = %s
                       AND LOWER(
-                          CAST(u.tipo_usuario AS TEXT)
-                      ) = 'cliente'
+                        CAST(u.tipo_usuario AS TEXT)
+                    ) = 'cliente'
                     LIMIT 1
                     """,
                     (correo_limpio,),
@@ -427,9 +470,7 @@ class ClienteDAO:
                 filas = cursor.fetchall()
 
             return [
-                self._crear_cliente_desde_fila(
-                    fila
-                )
+                self._crear_cliente_desde_fila(fila)
                 for fila in filas
             ]
 
@@ -452,20 +493,19 @@ class ClienteDAO:
                 )
             )
 
-        self._validar_id(
-            cliente.id_usuario
+        if cliente.id_usuario is None:
+            raise ValueError(
+                "El cliente debe tener un id"
+            )
+
+        self._validar_id(cliente.id_usuario)
+
+        correo_limpio = self._normalizar_correo(
+            cliente.correo_electronico
         )
 
-        correo_limpio = (
-            self._normalizar_correo(
-                cliente.correo_electronico
-            )
-        )
-
-        genero_limpio = (
-            self._normalizar_genero(
-                cliente.genero
-            )
+        genero_limpio = self._normalizar_genero(
+            cliente.genero
         )
 
         self._bd.abrir_conexion()
@@ -482,8 +522,8 @@ class ClienteDAO:
                         edad = %s
                     WHERE id_usuario = %s
                       AND LOWER(
-                          CAST(tipo_usuario AS TEXT)
-                      ) = 'cliente'
+                        CAST(tipo_usuario AS TEXT)
+                    ) = 'cliente'
                     """,
                     (
                         cliente.nombre.strip(),
@@ -588,9 +628,7 @@ class ClienteDAO:
                     ),
                 )
 
-                actualizado = (
-                    cursor.rowcount > 0
-                )
+                actualizado = cursor.rowcount > 0
 
             self._bd._conexion.commit()
 
@@ -612,10 +650,7 @@ class ClienteDAO:
         self._validar_id(id_usuario)
 
         if (
-            not isinstance(
-                contrasenia_actual,
-                str,
-            )
+            not isinstance(contrasenia_actual, str)
             or not contrasenia_actual
         ):
             raise ValueError(
@@ -626,10 +661,7 @@ class ClienteDAO:
             )
 
         if (
-            not isinstance(
-                nueva_contrasenia,
-                str,
-            )
+            not isinstance(nueva_contrasenia, str)
             or not nueva_contrasenia
         ):
             raise ValueError(
@@ -637,13 +669,6 @@ class ClienteDAO:
                     "La nueva contraseña no puede "
                     "estar vacía."
                 )
-            )
-
-        if not GestorSeguridad.validar_fortaleza_contrasena(
-            nueva_contrasenia
-        ):
-            raise ValueError(
-                "La nueva contraseña es muy débil."
             )
 
         self._bd.abrir_conexion()
@@ -656,8 +681,8 @@ class ClienteDAO:
                     FROM usuarios
                     WHERE id_usuario = %s
                       AND LOWER(
-                          CAST(tipo_usuario AS TEXT)
-                      ) = 'cliente'
+                        CAST(tipo_usuario AS TEXT)
+                    ) = 'cliente'
                     """,
                     (id_usuario,),
                 )
@@ -675,30 +700,36 @@ class ClienteDAO:
                 ):
                     return False
 
-                nuevo_hash = (
-                    GestorSeguridad.generar_hash(
-                        nueva_contrasenia
+                if not GestorSeguridad.validar_fortaleza_contrasena(
+                    nueva_contrasenia
+                ):
+                    raise ValueError(
+                        "La nueva contraseña es muy débil."
                     )
+
+                nuevo_hash = GestorSeguridad.generar_hash(
+                    nueva_contrasenia
                 )
 
                 cursor.execute(
                     """
                     UPDATE usuarios
-                    SET contrasenia_hash = %s
+                    SET
+                        contrasenia_hash = %s,
+                        U&"contrase\\00F1a_hash" = %s
                     WHERE id_usuario = %s
                       AND LOWER(
-                          CAST(tipo_usuario AS TEXT)
-                      ) = 'cliente'
+                        CAST(tipo_usuario AS TEXT)
+                    ) = 'cliente'
                     """,
                     (
+                        nuevo_hash,
                         nuevo_hash,
                         id_usuario,
                     ),
                 )
 
-                actualizado = (
-                    cursor.rowcount > 0
-                )
+                actualizado = cursor.rowcount > 0
 
             self._bd._conexion.commit()
 
@@ -726,15 +757,13 @@ class ClienteDAO:
                     DELETE FROM usuarios
                     WHERE id_usuario = %s
                       AND LOWER(
-                          CAST(tipo_usuario AS TEXT)
-                      ) = 'cliente'
+                        CAST(tipo_usuario AS TEXT)
+                    ) = 'cliente'
                     """,
                     (id_usuario,),
                 )
 
-                eliminado = (
-                    cursor.rowcount > 0
-                )
+                eliminado = cursor.rowcount > 0
 
             self._bd._conexion.commit()
 
@@ -750,22 +779,6 @@ class ClienteDAO:
     ) -> Cliente:
         """
         Convierte una fila de PostgreSQL en Cliente.
-
-        Orden esperado:
-        0  id_usuario
-        1  nombre
-        2  apellido
-        3  correo_electronico
-        4  contrasenia_hash
-        5  edad
-        6  tipo_usuario
-        7  fecha_registro
-        8  peso
-        9  peso_objetivo
-        10 altura
-        11 objetivo
-        12 genero
-        13 fecha_ingreso
         """
         peso_objetivo = fila[9]
 

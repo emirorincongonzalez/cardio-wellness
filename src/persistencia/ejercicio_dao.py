@@ -68,9 +68,7 @@ class EjercicioDAO:
                     ),
                 )
 
-                resultado = (
-                    cursor.fetchone()
-                )
+                resultado = cursor.fetchone()
 
                 if resultado is None:
                     raise RuntimeError(
@@ -78,9 +76,7 @@ class EjercicioDAO:
                         "del ejercicio creado."
                     )
 
-                ejercicio.id_ejercicio = (
-                    resultado[0]
-                )
+                ejercicio.id_ejercicio = resultado[0]
 
             self._bd._conexion.commit()
 
@@ -203,9 +199,21 @@ class EjercicioDAO:
         """
         self._validar_ejercicio(ejercicio)
 
-        self._validar_id(
-            ejercicio.id_ejercicio
-        )
+        if (
+            ejercicio.id_ejercicio is None
+            or isinstance(
+                ejercicio.id_ejercicio,
+                bool,
+            )
+            or not isinstance(
+                ejercicio.id_ejercicio,
+                int,
+            )
+            or ejercicio.id_ejercicio <= 0
+        ):
+            raise ValueError(
+                "El ejercicio debe tener un id válido."
+            )
 
         self._bd.abrir_conexion()
 
@@ -301,9 +309,7 @@ class EjercicioDAO:
                     (id_ejercicio,),
                 )
 
-                eliminado = (
-                    cursor.rowcount > 0
-                )
+                eliminado = cursor.rowcount > 0
 
             self._bd._conexion.commit()
 

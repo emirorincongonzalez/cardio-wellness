@@ -206,6 +206,8 @@ class UsuarioDAO:
                 "El tipo de usuario no es válido."
             )
 
+        genero_limpio = None
+
         if isinstance(usuario, Cliente):
             genero_limpio = (
                 self._normalizar_genero(
@@ -731,7 +733,9 @@ class UsuarioDAO:
 
         sql = """
             UPDATE usuarios
-            SET contrasenia_hash = %s
+            SET
+                contrasenia_hash = %s,
+                U&"contrase\00F1a_hash" = %s
             WHERE id_usuario = %s
         """
 
@@ -741,6 +745,7 @@ class UsuarioDAO:
                 .ejecutar_actualizacion(
                     sql,
                     (
+                        nuevo_hash,
                         nuevo_hash,
                         id_usuario,
                     ),

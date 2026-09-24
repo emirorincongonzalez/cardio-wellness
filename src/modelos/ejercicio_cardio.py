@@ -35,9 +35,7 @@ class EjercicioCardio:
         self.nombre = nombre
         self.descripcion = descripcion
         self.tipo = tipo
-        self.duracion_minutos = (
-            duracion_minutos
-        )
+        self.duracion_minutos = duracion_minutos
         self.intensidad = intensidad
         self.calorias_estimadas = (
             calorias_estimadas
@@ -131,7 +129,11 @@ class EjercicioCardio:
             isinstance(valor, bool)
             or not isinstance(
                 valor,
-                (int, float, Decimal),
+                (
+                    int,
+                    float,
+                    Decimal,
+                ),
             )
         ):
             raise ValueError(
@@ -139,9 +141,7 @@ class EjercicioCardio:
             )
 
         try:
-            duracion = Decimal(
-                str(valor)
-            )
+            duracion = Decimal(str(valor))
 
         except (
             InvalidOperation,
@@ -163,9 +163,7 @@ class EjercicioCardio:
                 "La duración debe ser un número entero."
             )
 
-        self._duracion_minutos = int(
-            duracion
-        )
+        self._duracion_minutos = int(duracion)
 
     @property
     def intensidad(self) -> Intensidad:
@@ -184,26 +182,20 @@ class EjercicioCardio:
             return
 
         if isinstance(valor, str):
-            valor_normalizado = (
-                valor.strip().upper()
-            )
+            valor_normalizado = valor.strip().upper()
 
             try:
-                self._intensidad = (
-                    Intensidad[
-                        valor_normalizado
-                    ]
-                )
+                self._intensidad = Intensidad[
+                    valor_normalizado
+                ]
                 return
 
             except KeyError:
                 pass
 
             try:
-                self._intensidad = (
-                    Intensidad(
-                        valor_normalizado
-                    )
+                self._intensidad = Intensidad(
+                    valor_normalizado
                 )
                 return
 
@@ -232,7 +224,11 @@ class EjercicioCardio:
             isinstance(valor, bool)
             or not isinstance(
                 valor,
-                (int, float, Decimal),
+                (
+                    int,
+                    float,
+                    Decimal,
+                ),
             )
         ):
             raise ValueError(
@@ -240,9 +236,7 @@ class EjercicioCardio:
             )
 
         try:
-            calorias = Decimal(
-                str(valor)
-            )
+            calorias = Decimal(str(valor))
 
         except (
             InvalidOperation,
@@ -253,16 +247,13 @@ class EjercicioCardio:
                 "Las calorías no son válidas."
             ) from error
 
-        if calorias <= Decimal("0"):
+        if calorias < Decimal("0"):
             raise ValueError(
-                "Las calorías deben ser mayores "
-                "que cero."
+                "Las calorías no pueden ser negativas."
             )
 
-        self._calorias_estimadas = (
-            calorias.quantize(
-                Decimal("0.01")
-            )
+        self._calorias_estimadas = calorias.quantize(
+            Decimal("0.01")
         )
 
     @property
@@ -321,9 +312,7 @@ class EjercicioCardio:
         self.nombre = nombre
         self.descripcion = descripcion
         self.tipo = tipo
-        self.duracion_minutos = (
-            duracion_minutos
-        )
+        self.duracion_minutos = duracion_minutos
         self.intensidad = intensidad
         self.calorias_estimadas = (
             calorias_estimadas

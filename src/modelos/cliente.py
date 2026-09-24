@@ -28,7 +28,6 @@ class Cliente(Usuario):
         correo_electronico: str,
         contrasenia_hash: str,
         edad: int,
-        genero: str,
         peso: Union[
             int,
             float,
@@ -40,6 +39,7 @@ class Cliente(Usuario):
             Decimal,
         ],
         objetivo: str,
+        genero: str = "PREFIERO NO DECIRLO",
         peso_objetivo: Optional[
             Union[
                 int,
@@ -54,9 +54,7 @@ class Cliente(Usuario):
         super().__init__(
             nombre=nombre,
             apellido=apellido,
-            correo_electronico=(
-                correo_electronico
-            ),
+            correo_electronico=correo_electronico,
             contrasenia_hash=contrasenia_hash,
             edad=edad,
             tipo_usuario="cliente",
@@ -123,6 +121,9 @@ class Cliente(Usuario):
             Decimal,
         ],
     ) -> None:
+        """
+        Valida y guarda el peso actual.
+        """
         if (
             not isinstance(
                 valor,
@@ -157,6 +158,9 @@ class Cliente(Usuario):
             Decimal,
         ],
     ) -> None:
+        """
+        Valida y guarda el peso objetivo.
+        """
         if (
             not isinstance(
                 valor,
@@ -196,6 +200,9 @@ class Cliente(Usuario):
             Decimal,
         ],
     ) -> None:
+        """
+        Valida y guarda la altura.
+        """
         if (
             not isinstance(
                 valor,
@@ -226,6 +233,9 @@ class Cliente(Usuario):
         self,
         valor: str,
     ) -> None:
+        """
+        Valida y guarda el objetivo.
+        """
         if (
             not isinstance(valor, str)
             or not valor.strip()
@@ -248,6 +258,9 @@ class Cliente(Usuario):
         self,
         valor: Optional[date],
     ) -> None:
+        """
+        Asigna la fecha de ingreso actual si no se recibe una.
+        """
         self._fecha_ingreso = (
             valor
             if valor is not None

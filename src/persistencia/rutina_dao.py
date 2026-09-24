@@ -17,9 +17,7 @@ class RutinaDAO:
     """
 
     def __init__(self) -> None:
-        self._bd = (
-            ConexionBD.obtener_instancia()
-        )
+        self._bd = ConexionBD.obtener_instancia()
 
     def guardar(
         self,
@@ -27,6 +25,10 @@ class RutinaDAO:
     ) -> Rutina:
         """
         Guarda una rutina nueva.
+
+        Si creado_por es None, se omite la columna para
+        que PostgreSQL aplique el valor predeterminado
+        definido en la tabla.
         """
         self._validar_rutina_para_guardar(
             rutina
@@ -36,39 +38,73 @@ class RutinaDAO:
 
         try:
             with self._bd._conexion.cursor() as cursor:
-                cursor.execute(
-                    """
-                    INSERT INTO rutinas (
-                        nombre,
-                        descripcion,
-                        objetivo,
-                        nivel,
-                        duracion_semanas,
-                        creado_por
-                    )
-                    VALUES (
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        %s
-                    )
-                    RETURNING
-                        id_rutina,
-                        fecha_creacion
-                    """,
-                    (
-                        rutina.nombre,
-                        rutina.descripcion,
-                        rutina.objetivo,
-                        self._obtener_valor_nivel(
-                            rutina.nivel
+                if rutina.creado_por is None:
+                    cursor.execute(
+                        """
+                        INSERT INTO rutinas (
+                            nombre,
+                            descripcion,
+                            objetivo,
+                            nivel,
+                            duracion_semanas
+                        )
+                        VALUES (
+                            %s,
+                            %s,
+                            %s,
+                            %s,
+                            %s
+                        )
+                        RETURNING
+                            id_rutina,
+                            creado_por,
+                            fecha_creacion
+                        """,
+                        (
+                            rutina.nombre,
+                            rutina.descripcion,
+                            rutina.objetivo,
+                            self._obtener_valor_nivel(
+                                rutina.nivel
+                            ),
+                            rutina.duracion_semanas,
                         ),
-                        rutina.duracion_semanas,
-                        rutina.creado_por,
-                    ),
-                )
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        INSERT INTO rutinas (
+                            nombre,
+                            descripcion,
+                            objetivo,
+                            nivel,
+                            duracion_semanas,
+                            creado_por
+                        )
+                        VALUES (
+                            %s,
+                            %s,
+                            %s,
+                            %s,
+                            %s,
+                            %s
+                        )
+                        RETURNING
+                            id_rutina,
+                            creado_por,
+                            fecha_creacion
+                        """,
+                        (
+                            rutina.nombre,
+                            rutina.descripcion,
+                            rutina.objetivo,
+                            self._obtener_valor_nivel(
+                                rutina.nivel
+                            ),
+                            rutina.duracion_semanas,
+                            rutina.creado_por,
+                        ),
+                    )
 
                 resultado = cursor.fetchone()
 
@@ -79,7 +115,8 @@ class RutinaDAO:
                     )
 
                 rutina.id_rutina = resultado[0]
-                rutina.fecha_creacion = resultado[1]
+                rutina.creado_por = resultado[1]
+                rutina.fecha_creacion = resultado[2]
 
             self._bd._conexion.commit()
 
@@ -87,6 +124,17 @@ class RutinaDAO:
 
         except IntegrityError as error:
             self._bd._conexion.rollback()
+
+            codigo = getattr(
+                error,
+                "pgcode",
+                None,
+            )
+
+            if codigo == "23503":
+                raise ValueError(
+                    "El creador de la rutina no existe."
+                ) from error
 
             raise self._convertir_error_integridad(
                 error,
@@ -135,17 +183,13 @@ class RutinaDAO:
                 if fila is None:
                     return None
 
-                rutina = (
-                    self._crear_rutina_desde_fila(
-                        fila
-                    )
+                rutina = self._crear_rutina_desde_fila(
+                    fila
                 )
 
-                ejercicios = (
-                    self._obtener_ejercicios(
-                        cursor,
-                        id_rutina,
-                    )
+                ejercicios = self._obtener_ejercicios(
+                    cursor,
+                    id_rutina,
                 )
 
                 rutina.reemplazar_ejercicios(
@@ -192,11 +236,9 @@ class RutinaDAO:
                         )
                     )
 
-                    ejercicios = (
-                        self._obtener_ejercicios(
-                            cursor,
-                            rutina.id_rutina,
-                        )
+                    ejercicios = self._obtener_ejercicios(
+                        cursor,
+                        rutina.id_rutina,
                     )
 
                     rutina.reemplazar_ejercicios(
@@ -222,16 +264,13 @@ class RutinaDAO:
         rutina: Rutina,
     ) -> Rutina:
         """
-        Actualiza una rutina.
+        Actualiza una rutina existente.
         """
-        self._validar_rutina_para_guardar(
+        self._validar_rutina_para_actualizar(
             rutina
         )
 
-        id_rutina = self._validar_id(
-            rutina.id_rutina,
-            "El ID de la rutina",
-        )
+        id_rutina = rutina.id_rutina
 
         self._bd.abrir_conexion()
 
@@ -282,11 +321,9 @@ class RutinaDAO:
                     )
                 )
 
-                ejercicios = (
-                    self._obtener_ejercicios(
-                        cursor,
-                        id_rutina,
-                    )
+                ejercicios = self._obtener_ejercicios(
+                    cursor,
+                    id_rutina,
                 )
 
                 rutina_actualizada.reemplazar_ejercicios(
@@ -340,7 +377,7 @@ class RutinaDAO:
             or orden_ejercicio <= 0
         ):
             raise ValueError(
-                "El orden debe ser un entero "
+                "El orden del ejercicio debe ser "
                 "mayor que cero."
             )
 
@@ -386,6 +423,22 @@ class RutinaDAO:
         except IntegrityError as error:
             self._bd._conexion.rollback()
 
+            codigo = getattr(
+                error,
+                "pgcode",
+                None,
+            )
+
+            if codigo == "23503":
+                raise ValueError(
+                    "La rutina o el ejercicio no existe."
+                ) from error
+
+            if codigo == "23505":
+                raise ValueError(
+                    "El ejercicio ya pertenece a la rutina."
+                ) from error
+
             raise self._convertir_error_integridad(
                 error,
                 "No se pudo asociar el ejercicio.",
@@ -401,7 +454,8 @@ class RutinaDAO:
         id_ejercicio: int,
     ) -> bool:
         """
-        Elimina exactamente una asociación.
+        Elimina la asociación entre una rutina y un
+        ejercicio.
         """
         id_rutina = self._validar_id(
             id_rutina,
@@ -418,34 +472,7 @@ class RutinaDAO:
         try:
             conexion = self._bd._conexion
 
-            # Limpia cualquier transacción anterior
-            # que haya quedado abortada.
-            conexion.rollback()
-
             with conexion.cursor() as cursor:
-                cursor.execute(
-                    """
-                    SELECT 1
-                    FROM rutina_ejercicios
-                    WHERE id_rutina = %s
-                      AND id_ejercicio = %s
-                    LIMIT 1
-                    """,
-                    (
-                        id_rutina,
-                        id_ejercicio,
-                    ),
-                )
-
-                asociada = (
-                    cursor.fetchone()
-                    is not None
-                )
-
-                if not asociada:
-                    conexion.rollback()
-                    return False
-
                 cursor.execute(
                     """
                     DELETE FROM rutina_ejercicios
@@ -461,17 +488,14 @@ class RutinaDAO:
                     ),
                 )
 
-                fila_eliminada = (
+                eliminado = (
                     cursor.fetchone()
+                    is not None
                 )
-
-                if fila_eliminada is None:
-                    conexion.rollback()
-                    return False
 
             conexion.commit()
 
-            return True
+            return eliminado
 
         except Exception:
             self._bd._conexion.rollback()
@@ -483,7 +507,8 @@ class RutinaDAO:
         id_ejercicio: int,
     ) -> bool:
         """
-        Comprueba una asociación exacta.
+        Comprueba si el ejercicio está asociado a la
+        rutina indicada.
         """
         id_rutina = self._validar_id(
             id_rutina,
@@ -527,7 +552,7 @@ class RutinaDAO:
         id_rutina: int,
     ) -> List[EjercicioCardio]:
         """
-        Lista los ejercicios asociados.
+        Lista los ejercicios asociados a una rutina.
         """
         id_rutina = self._validar_id(
             id_rutina,
@@ -538,14 +563,10 @@ class RutinaDAO:
 
         try:
             with self._bd._conexion.cursor() as cursor:
-                ejercicios = (
-                    self._obtener_ejercicios(
-                        cursor,
-                        id_rutina,
-                    )
+                return self._obtener_ejercicios(
+                    cursor,
+                    id_rutina,
                 )
-
-            return ejercicios
 
         except Exception:
             self._bd._conexion.rollback()
@@ -606,7 +627,7 @@ class RutinaDAO:
         fila: Tuple,
     ) -> Rutina:
         """
-        Convierte una fila en una Rutina.
+        Convierte una fila de base de datos en Rutina.
         """
         if len(fila) < 8:
             raise ValueError(
@@ -630,7 +651,7 @@ class RutinaDAO:
         id_rutina: int,
     ) -> List[EjercicioCardio]:
         """
-        Obtiene ejercicios asociados.
+        Obtiene los ejercicios de una rutina ordenados.
         """
         cursor.execute(
             """
@@ -656,9 +677,7 @@ class RutinaDAO:
         )
 
         filas = cursor.fetchall()
-        ejercicios: List[
-            EjercicioCardio
-        ] = []
+        ejercicios: List[EjercicioCardio] = []
 
         for fila in filas:
             ejercicios.append(
@@ -667,9 +686,7 @@ class RutinaDAO:
                     nombre=(
                         fila[1]
                         if fila[1] is not None
-                        else (
-                            f"Ejercicio {fila[0]}"
-                        )
+                        else f"Ejercicio {fila[0]}"
                     ),
                     descripcion=(
                         fila[2]
@@ -707,7 +724,7 @@ class RutinaDAO:
         nivel,
     ) -> str:
         """
-        Devuelve el nivel como texto.
+        Convierte un enum o texto de nivel a texto válido.
         """
         valor = getattr(
             nivel,
@@ -720,9 +737,7 @@ class RutinaDAO:
                 "El nivel es obligatorio."
             )
 
-        valor = str(
-            valor
-        ).strip().upper()
+        valor = str(valor).strip().upper()
 
         niveles_validos = {
             "BASICO",
@@ -739,11 +754,14 @@ class RutinaDAO:
         return valor
 
     @staticmethod
-    def _validar_rutina_para_guardar(
+    def _validar_rutina_para_actualizar(
         rutina: Rutina,
     ) -> None:
         """
-        Valida una rutina.
+        Valida los datos editables de una rutina.
+
+        creado_por no se valida porque una actualización
+        no debe modificar quién creó la rutina.
         """
         if not isinstance(
             rutina,
@@ -754,17 +772,77 @@ class RutinaDAO:
                 "de Rutina."
             )
 
-        if not rutina.nombre.strip():
+        if rutina.id_rutina is None:
+            raise ValueError(
+                "La rutina debe tener un id."
+            )
+
+        RutinaDAO._validar_id(
+            rutina.id_rutina,
+            "El ID de la rutina",
+        )
+
+        RutinaDAO._validar_campos_rutina(
+            rutina
+        )
+
+    @staticmethod
+    def _validar_rutina_para_guardar(
+        rutina: Rutina,
+    ) -> None:
+        """
+        Valida una rutina antes de insertarla.
+
+        creado_por puede ser None, porque el INSERT
+        omite esa columna y la tabla aplica su valor
+        predeterminado.
+        """
+        if not isinstance(
+            rutina,
+            Rutina,
+        ):
+            raise TypeError(
+                "Debe proporcionar una instancia "
+                "de Rutina."
+            )
+
+        RutinaDAO._validar_campos_rutina(
+            rutina
+        )
+
+        if rutina.creado_por is not None:
+            RutinaDAO._validar_id(
+                rutina.creado_por,
+                "El ID del creador",
+            )
+
+    @staticmethod
+    def _validar_campos_rutina(
+        rutina: Rutina,
+    ) -> None:
+        """
+        Valida los campos comunes de creación y edición.
+        """
+        if not isinstance(
+            rutina.nombre,
+            str,
+        ) or not rutina.nombre.strip():
             raise ValueError(
                 "El nombre es obligatorio."
             )
 
-        if not rutina.descripcion.strip():
+        if not isinstance(
+            rutina.descripcion,
+            str,
+        ) or not rutina.descripcion.strip():
             raise ValueError(
                 "La descripción es obligatoria."
             )
 
-        if not rutina.objetivo.strip():
+        if not isinstance(
+            rutina.objetivo,
+            str,
+        ) or not rutina.objetivo.strip():
             raise ValueError(
                 "El objetivo es obligatorio."
             )
@@ -785,11 +863,6 @@ class RutinaDAO:
                 "mayor que cero."
             )
 
-        RutinaDAO._validar_id(
-            rutina.creado_por,
-            "El ID del creador",
-        )
-
         RutinaDAO._obtener_valor_nivel(
             rutina.nivel
         )
@@ -800,7 +873,7 @@ class RutinaDAO:
         nombre: str,
     ) -> int:
         """
-        Convierte y valida un ID positivo.
+        Convierte y valida un identificador positivo.
         """
         if (
             identificador is None
@@ -839,7 +912,8 @@ class RutinaDAO:
         mensaje: str,
     ) -> ValueError:
         """
-        Convierte errores de integridad.
+        Convierte errores de integridad PostgreSQL a
+        mensajes de dominio.
         """
         codigo = getattr(
             error,
@@ -849,8 +923,7 @@ class RutinaDAO:
 
         if codigo == "23503":
             return ValueError(
-                "El usuario, rutina o ejercicio "
-                "relacionado no existe."
+                "El registro relacionado no existe."
             )
 
         if codigo == "23505":

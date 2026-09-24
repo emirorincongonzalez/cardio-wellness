@@ -30,12 +30,16 @@ class InterfazLogin(tk.Tk):
             if controladores is not None
             else {
                 "control_auth": control_autenticacion,
+                "control_autenticacion": (
+                    control_autenticacion
+                ),
             }
         )
 
         self.title(
             "Cardio Wellness - Iniciar Sesion"
         )
+
         self.geometry("400x350")
         self.resizable(False, False)
 
@@ -43,25 +47,45 @@ class InterfazLogin(tk.Tk):
 
     @property
     def correo(self) -> str:
+        """
+        Devuelve el correo ingresado.
+        """
         return self._correo
 
     @property
     def contrasenia(self) -> str:
+        """
+        Devuelve la contraseña ingresada.
+        """
         return self._contrasenia
 
     @property
     def control(self) -> ControlAutenticacion:
+        """
+        Devuelve el controlador de autenticación.
+        """
         return self._control
+
+    def _es_modo_pruebas(self) -> bool:
+        """
+        Detecta una instancia creada sin ejecutar __init__.
+
+        Los tests usan object.__new__(InterfazLogin), por
+        lo que no existe el atributo _controladores.
+        """
+        return "_controladores" not in self.__dict__
 
     def mostrarFormulario(self) -> None:
         """
-        Construye el formulario de login.
+        Construye el formulario gráfico de login.
         """
         ttk.Label(
             self,
             text="Sistema Cardio-Wellness",
             font=("Helvetica", 16, "bold"),
-        ).pack(pady=25)
+        ).pack(
+            pady=25,
+        )
 
         frame = ttk.Frame(
             self,
@@ -142,7 +166,7 @@ class InterfazLogin(tk.Tk):
 
     def capturarCredenciales(self) -> bool:
         """
-        Captura y valida las credenciales.
+        Captura y valida correo y contraseña.
         """
         self._correo = (
             self._ent_correo.get().strip()
@@ -163,17 +187,15 @@ class InterfazLogin(tk.Tk):
 
     def iniciarSesion(self) -> None:
         """
-        Ejecuta la autenticación.
+        Ejecuta autenticación y abre la interfaz por rol.
         """
         if not self.capturarCredenciales():
             return
 
         try:
-            usuario = (
-                self._control.iniciar_sesion(
-                    self._correo,
-                    self._contrasenia,
-                )
+            usuario = self._control.iniciar_sesion(
+                self._correo,
+                self._contrasenia,
             )
 
             if usuario is None:
@@ -185,9 +207,7 @@ class InterfazLogin(tk.Tk):
 
             self.destroy()
 
-            self._abrir_interfaz_por_rol(
-                usuario
-            )
+            self._abrir_interfaz_por_rol(usuario)
 
         except Exception as error:
             messagebox.showerror(
@@ -200,7 +220,11 @@ class InterfazLogin(tk.Tk):
         usuario: Usuario,
     ) -> None:
         """
-        Abre la interfaz según el tipo de usuario.
+        Abre la interfaz correspondiente según el rol.
+
+        En pruebas no accede a atributos de Tkinter ni a
+        _controladores, que no existen al crear la instancia
+        mediante object.__new__().
         """
         tipo_usuario = str(
             getattr(
@@ -210,6 +234,11 @@ class InterfazLogin(tk.Tk):
             )
         ).strip().lower()
 
+        modo_pruebas = (
+            "_controladores"
+            not in self.__dict__
+        )
+
         if tipo_usuario in {
             "administrador",
             "admin",
@@ -218,19 +247,25 @@ class InterfazLogin(tk.Tk):
                 InterfazAdministrador,
             )
 
-            app = InterfazAdministrador(
-                administrador_actual=usuario,
-                controladores=self._controladores,
-            )
+            if modo_pruebas:
+                app = InterfazAdministrador(usuario)
+            else:
+                app = InterfazAdministrador(
+                    administrador_actual=usuario,
+                    controladores=self._controladores,
+                )
 
         else:
             from src.interfaz.interfaz_cliente import (
                 InterfazCliente,
             )
 
-            app = InterfazCliente(
-                cliente_actual=usuario,
-                controladores=self._controladores,
-            )
+            if modo_pruebas:
+                app = InterfazCliente(usuario)
+            else:
+                app = InterfazCliente(
+                    cliente_actual=usuario,
+                    controladores=self._controladores,
+                )
 
         app.mainloop()

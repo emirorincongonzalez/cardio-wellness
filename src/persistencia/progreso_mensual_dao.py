@@ -28,10 +28,10 @@ class ProgresoMensualDAO:
         progreso: ProgresoMensual,
     ) -> ProgresoMensual:
         """
-        Inserta o actualiza el progreso mensual.
+        Inserta un progreso mensual.
 
-        Solo puede existir un registro por cliente
-        y por mes.
+        Solo puede existir un registro por cliente y mes.
+        Si ya existe, se lanza un ValueError.
         """
         self._validar_progreso(progreso)
 
@@ -82,18 +82,6 @@ class ProgresoMensualDAO:
                         %s,
                         %s
                     )
-                    ON CONFLICT (
-                        id_cliente,
-                        mes
-                    )
-                    DO UPDATE SET
-                        peso = EXCLUDED.peso,
-                        sesiones_completadas =
-                            EXCLUDED.sesiones_completadas,
-                        sesiones_planificadas =
-                            EXCLUDED.sesiones_planificadas,
-                        porcentaje_cumplimiento =
-                            EXCLUDED.porcentaje_cumplimiento
                     RETURNING
                         id_progreso,
                         id_cliente,
@@ -129,6 +117,12 @@ class ProgresoMensualDAO:
 
         except IntegrityError as error:
             self._bd._conexion.rollback()
+
+            if error.pgcode == "23505":
+                raise ValueError(
+                    "Ya existe un registro de progreso "
+                    "para este cliente y mes."
+                ) from error
 
             if error.pgcode == "23503":
                 raise ValueError(
@@ -324,7 +318,7 @@ class ProgresoMensualDAO:
 
             if fila is None:
                 raise ValueError(
-                    "No se encontró el progreso."
+                    "No se encontró el registro de progreso."
                 )
 
             self._bd._conexion.commit()
@@ -332,6 +326,25 @@ class ProgresoMensualDAO:
             return self._crear_progreso_desde_fila(
                 fila
             )
+
+        except IntegrityError as error:
+            self._bd._conexion.rollback()
+
+            if error.pgcode == "23505":
+                raise ValueError(
+                    "Ya existe un registro de progreso "
+                    "para este cliente y mes."
+                ) from error
+
+            if error.pgcode == "23503":
+                raise ValueError(
+                    "El cliente referenciado no existe."
+                ) from error
+
+            raise ValueError(
+                "No se pudo actualizar el progreso "
+                "mensual."
+            ) from error
 
         except Exception:
             self._bd._conexion.rollback()

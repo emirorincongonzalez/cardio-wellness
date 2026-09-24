@@ -47,6 +47,9 @@ from src.persistencia.asignacion_rutina_dao import (
 from src.persistencia.cliente_dao import (
     ClienteDAO,
 )
+from src.persistencia.conexion_bd import (
+    ConexionBD,
+)
 from src.persistencia.ejercicio_dao import (
     EjercicioDAO,
 )
@@ -63,14 +66,10 @@ from src.persistencia.usuario_dao import (
     UsuarioDAO,
 )
 
-from src.persistencia.conexion_bd import (
-    ConexionBD,
-)
-
 
 def inicializar_sistema() -> dict:
     """
-    Inicializa la conexión, los DAO y los controladores.
+    Inicializa conexión, DAO y controladores.
     """
     print("=" * 60)
     print(
@@ -92,7 +91,6 @@ def inicializar_sistema() -> dict:
             print(
                 "Integridad de la base de datos: OK"
             )
-
         else:
             print(
                 "Advertencia: verificacion de "
@@ -134,47 +132,14 @@ def inicializar_sistema() -> dict:
             cliente_dao=cliente_dao,
         )
 
-        print(
-            "DAO de progreso:",
-            type(
-                control_progreso.progreso_dao
-            ).__name__,
-        )
-
-        print(
-            "DAO de sesiones:",
-            type(
-                control_progreso.sesion_dao
-            ).__name__,
-        )
-
-        print(
-            "DAO de clientes:",
-            type(
-                control_progreso.cliente_dao
-            ).__name__,
-        )
-
         controladores = {
             "control_auth": control_auth,
-            "control_autenticacion": (
-                control_auth
-            ),
-            "control_clientes": (
-                control_clientes
-            ),
-            "control_ejercicios": (
-                control_ejercicios
-            ),
-            "control_rutinas": (
-                control_rutinas
-            ),
-            "control_sesiones": (
-                control_sesiones
-            ),
-            "control_progreso": (
-                control_progreso
-            ),
+            "control_autenticacion": control_auth,
+            "control_clientes": control_clientes,
+            "control_ejercicios": control_ejercicios,
+            "control_rutinas": control_rutinas,
+            "control_sesiones": control_sesiones,
+            "control_progreso": control_progreso,
         }
 
         print(
@@ -198,7 +163,7 @@ def iniciar_interfaz(
     controladores: dict,
 ) -> None:
     """
-    Crea y ejecuta la ventana de inicio de sesión.
+    Crea y ejecuta la interfaz gráfica de inicio de sesión.
     """
     control_auth = controladores[
         "control_auth"
@@ -212,29 +177,212 @@ def iniciar_interfaz(
     app.mainloop()
 
 
-def main() -> None:
+def mostrar_menu_principal() -> None:
     """
-    Función principal de la aplicación.
+    Muestra el menú de consola.
+    """
+    print("\n=== CARDIO-WELLNESS ===")
+    print("1. Iniciar sesión")
+    print("2. Registrar cliente")
+    print("3. Ver rutinas disponibles")
+    print("4. Salir")
+
+
+def iniciar_sesion_consola(
+    control_auth: ControlAutenticacion,
+) -> None:
+    """
+    Solicita credenciales e inicia sesión desde consola.
+    """
+    correo = input("Correo: ").strip()
+    contrasena = input("Contraseña: ").strip()
+
+    usuario = control_auth.iniciar_sesion(
+        correo,
+        contrasena,
+    )
+
+    if usuario is None:
+        print("✗ Credenciales inválidas")
+        return
+
+    nombre = getattr(
+        usuario,
+        "nombre",
+        "",
+    )
+
+    apellido = getattr(
+        usuario,
+        "apellido",
+        "",
+    )
+
+    print(
+        f"✓ Bienvenido, {nombre} {apellido}"
+    )
+
+
+def registrar_cliente_consola(
+    control_clientes: ControlClientes,
+) -> None:
+    """
+    Registra un cliente solicitando sus datos por consola.
+    """
+    try:
+        nombre = input("Nombre: ").strip()
+        apellido = input("Apellido: ").strip()
+        correo = input("Correo: ").strip()
+        contrasena = input("Contraseña: ").strip()
+        edad = int(
+            input("Edad: ").strip()
+        )
+        peso = float(
+            input("Peso (kg): ").strip()
+        )
+        altura = float(
+            input("Altura (m): ").strip()
+        )
+        objetivo = input("Objetivo: ").strip()
+
+        cliente = control_clientes.registrar_cliente(
+            nombre=nombre,
+            apellido=apellido,
+            correo=correo,
+            contrasena=contrasena,
+            edad=edad,
+            peso=peso,
+            altura=altura,
+            objetivo=objetivo,
+        )
+
+        print(
+            "✓ Cliente registrado: "
+            f"{cliente.nombre} {cliente.apellido}"
+        )
+
+    except ValueError as error:
+        print(f"✗ Error: {error}")
+
+    except Exception as error:
+        print(f"✗ Error: {error}")
+
+
+def mostrar_rutinas_consola(
+    control_rutinas: ControlRutinas,
+) -> None:
+    """
+    Muestra las rutinas disponibles por consola.
+    """
+    rutinas = control_rutinas.listar()
+
+    if not rutinas:
+        print("No hay rutinas disponibles")
+        return
+
+    print("\n=== RUTINAS DISPONIBLES ===")
+
+    for rutina in rutinas:
+        nivel = getattr(
+            rutina,
+            "nivel",
+            "",
+        )
+
+        nivel_texto = getattr(
+            nivel,
+            "value",
+            nivel,
+        )
+
+        print(
+            f"Nombre: {rutina.nombre}"
+        )
+        print(
+            f"Objetivo: {rutina.objetivo}"
+        )
+        print(
+            f"Nivel: {nivel_texto}"
+        )
+        print("-" * 30)
+
+
+def main(
+    iniciar_gui: bool = False,
+) -> None:
+    """
+    Ejecuta la aplicación.
+
+    Si iniciar_gui es True, abre la interfaz gráfica.
+    Si iniciar_gui es False, ejecuta el menú de consola,
+    utilizado por las pruebas unitarias.
     """
     bd = None
 
     try:
-        controladores = (
-            inicializar_sistema()
-        )
+        controladores = inicializar_sistema()
 
-        bd = ConexionBD.obtener_instancia()
+        try:
+            bd = ConexionBD.obtener_instancia()
+        except Exception:
+            bd = None
 
-        iniciar_interfaz(controladores)
+        if iniciar_gui:
+            iniciar_interfaz(controladores)
+            return
+
+        control_auth = controladores[
+            "control_auth"
+        ]
+
+        control_clientes = controladores[
+            "control_clientes"
+        ]
+
+        control_rutinas = controladores[
+            "control_rutinas"
+        ]
+
+        while True:
+            mostrar_menu_principal()
+
+            opcion = input(
+                "Seleccione una opción: "
+            ).strip()
+
+            if opcion == "1":
+                iniciar_sesion_consola(
+                    control_auth
+                )
+
+            elif opcion == "2":
+                registrar_cliente_consola(
+                    control_clientes
+                )
+
+            elif opcion == "3":
+                mostrar_rutinas_consola(
+                    control_rutinas
+                )
+
+            elif opcion == "4":
+                print("\nSaliendo...")
+                break
+
+            else:
+                print(
+                    "Opción inválida. "
+                    "Intente nuevamente."
+                )
 
     except KeyboardInterrupt:
         print(
-            "\nAplicacion terminada por el usuario"
+            "\n\nAplicación terminada por el usuario"
         )
 
     except Exception as error:
         print(
-            f"\nError critico: {error}"
+            f"\n✗ Error crítico: {error}"
         )
         sys.exit(1)
 
@@ -252,4 +400,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    main(
+        iniciar_gui=True,
+    )

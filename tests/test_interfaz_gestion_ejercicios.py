@@ -9,7 +9,7 @@ from src.interfaz.interfaz_gestion_ejercicios import (
 
 class WidgetFalso:
     """
-    Widget genérico falso para simular widgets ttk.
+    Widget falso genérico para widgets ttk.
     """
 
     def __init__(self, *args, **kwargs):
@@ -94,24 +94,18 @@ class TestInterfazGestionEjercicios:
 
     @pytest.fixture
     def control_ejercicios(self):
-        """
-        Crea un controlador de ejercicios simulado.
-        """
         controlador = MagicMock()
         controlador.listar.return_value = []
-
         return controlador
 
     @pytest.fixture
     def ejercicio(self):
-        """
-        Crea un ejercicio simulado.
-        """
         ejercicio = MagicMock()
 
         ejercicio.id_ejercicio = 1
         ejercicio.nombre = "Caminata"
         ejercicio.tipo = "LISS"
+        ejercicio.descripcion = "Actividad suave"
         ejercicio.duracion_minutos = 30
         ejercicio.calorias_estimadas = 250.0
         ejercicio.intensidad.value = "MEDIA"
@@ -120,21 +114,19 @@ class TestInterfazGestionEjercicios:
 
     @pytest.fixture
     def interfaz(self, control_ejercicios):
-        """
-        Crea la interfaz sin ejecutar el constructor real.
-        """
-        interfaz = object.__new__(InterfazGestionEjercicios)
+        interfaz = object.__new__(
+            InterfazGestionEjercicios
+        )
 
         interfaz._controlador = control_ejercicios
         interfaz._control_ejercicios = control_ejercicios
+        interfaz._descripciones_ejercicios = {}
+        interfaz._ejercicios_por_id = {}
 
         return interfaz
 
     @pytest.fixture
     def widgets_formulario(self):
-        """
-        Crea los widgets falsos del formulario.
-        """
         return {
             "nombre": EntryFalso(),
             "tipo": ComboboxFalso(),
@@ -150,14 +142,15 @@ class TestInterfazGestionEjercicios:
         interfaz,
         widgets,
     ):
-        """
-        Asigna los widgets falsos a la interfaz.
-        """
         interfaz._ent_nombre = widgets["nombre"]
         interfaz._cb_tipo = widgets["tipo"]
-        interfaz._ent_descripcion = widgets["descripcion"]
+        interfaz._ent_descripcion = widgets[
+            "descripcion"
+        ]
         interfaz._ent_duracion = widgets["duracion"]
-        interfaz._cb_intensidad = widgets["intensidad"]
+        interfaz._cb_intensidad = widgets[
+            "intensidad"
+        ]
         interfaz._ent_calorias = widgets["calorias"]
         interfaz._ent_buscar = widgets["buscar"]
 
@@ -166,54 +159,70 @@ class TestInterfazGestionEjercicios:
         interfaz,
         control_ejercicios,
     ):
-        """
-        Verifica la propiedad control_ejercicios.
-        """
-        assert interfaz.control_ejercicios is control_ejercicios
+        assert (
+            interfaz.control_ejercicios
+            is control_ejercicios
+        )
 
     def test_mostrar_formulario_ejercicio_crea_widgets(
         self,
         interfaz,
     ):
-        """
-        Verifica que se creen los widgets del formulario.
-        """
         with patch(
-            "src.interfaz.interfaz_gestion_ejercicios.ttk.LabelFrame",
+            "src.interfaz.interfaz_gestion_ejercicios."
+            "ttk.LabelFrame",
             side_effect=LabelFrameFalso,
         ), patch(
-            "src.interfaz.interfaz_gestion_ejercicios.ttk.Frame",
+            "src.interfaz.interfaz_gestion_ejercicios."
+            "ttk.Frame",
             side_effect=FrameFalso,
         ), patch(
-            "src.interfaz.interfaz_gestion_ejercicios.ttk.Label",
+            "src.interfaz.interfaz_gestion_ejercicios."
+            "ttk.Label",
             side_effect=LabelFalso,
         ), patch(
-            "src.interfaz.interfaz_gestion_ejercicios.ttk.Entry",
+            "src.interfaz.interfaz_gestion_ejercicios."
+            "ttk.Entry",
             side_effect=EntryFalso,
         ), patch(
-            "src.interfaz.interfaz_gestion_ejercicios.ttk.Combobox",
+            "src.interfaz.interfaz_gestion_ejercicios."
+            "ttk.Combobox",
             side_effect=ComboboxFalso,
         ), patch(
-            "src.interfaz.interfaz_gestion_ejercicios.ttk.Button",
+            "src.interfaz.interfaz_gestion_ejercicios."
+            "ttk.Button",
             side_effect=ButtonFalso,
         ):
             interfaz.mostrarFormularioEjercicio()
 
-        assert hasattr(interfaz, "_ent_nombre")
-        assert hasattr(interfaz, "_cb_tipo")
-        assert hasattr(interfaz, "_ent_descripcion")
-        assert hasattr(interfaz, "_ent_duracion")
-        assert hasattr(interfaz, "_cb_intensidad")
-        assert hasattr(interfaz, "_ent_calorias")
-        assert hasattr(interfaz, "_ent_buscar")
-
-        assert isinstance(interfaz._ent_nombre, EntryFalso)
-        assert isinstance(interfaz._cb_tipo, ComboboxFalso)
-        assert isinstance(interfaz._ent_descripcion, EntryFalso)
-        assert isinstance(interfaz._ent_duracion, EntryFalso)
-        assert isinstance(interfaz._cb_intensidad, ComboboxFalso)
-        assert isinstance(interfaz._ent_calorias, EntryFalso)
-        assert isinstance(interfaz._ent_buscar, EntryFalso)
+        assert isinstance(
+            interfaz._ent_nombre,
+            EntryFalso,
+        )
+        assert isinstance(
+            interfaz._cb_tipo,
+            ComboboxFalso,
+        )
+        assert isinstance(
+            interfaz._ent_descripcion,
+            EntryFalso,
+        )
+        assert isinstance(
+            interfaz._ent_duracion,
+            EntryFalso,
+        )
+        assert isinstance(
+            interfaz._cb_intensidad,
+            ComboboxFalso,
+        )
+        assert isinstance(
+            interfaz._ent_calorias,
+            EntryFalso,
+        )
+        assert isinstance(
+            interfaz._ent_buscar,
+            EntryFalso,
+        )
 
     def test_mostrar_ejercicios_carga_ejercicios(
         self,
@@ -221,11 +230,10 @@ class TestInterfazGestionEjercicios:
         control_ejercicios,
         ejercicio,
     ):
-        """
-        Verifica que los ejercicios se carguen en la tabla.
-        """
         interfaz._tree = TreeviewFalso()
-        control_ejercicios.listar.return_value = [ejercicio]
+        control_ejercicios.listar.return_value = [
+            ejercicio
+        ]
 
         with patch.object(
             interfaz,
@@ -243,6 +251,7 @@ class TestInterfazGestionEjercicios:
                         1,
                         "Caminata",
                         "LISS",
+                        "Actividad suave",
                         30,
                         "MEDIA",
                         250.0,
@@ -259,11 +268,8 @@ class TestInterfazGestionEjercicios:
         control_ejercicios,
         ejercicio,
     ):
-        """
-        Verifica que se eliminen los datos anteriores
-        antes de cargar la lista nuevamente.
-        """
         interfaz._tree = TreeviewFalso()
+
         interfaz._tree.items = {
             "item1": {
                 "values": (
@@ -273,25 +279,29 @@ class TestInterfazGestionEjercicios:
             }
         }
 
-        control_ejercicios.listar.return_value = [ejercicio]
+        control_ejercicios.listar.return_value = [
+            ejercicio
+        ]
 
         interfaz.mostrarEjercicios()
 
-        assert len(interfaz._tree.eliminaciones) == 1
-        assert interfaz._tree.eliminaciones[0][0] == ("item1",)
+        assert len(
+            interfaz._tree.eliminaciones
+        ) == 1
+
+        assert interfaz._tree.eliminaciones[0][0] == (
+            "item1",
+        )
 
     def test_mostrar_ejercicios_maneja_error(
         self,
         interfaz,
         control_ejercicios,
     ):
-        """
-        Verifica el manejo de errores al listar ejercicios.
-        """
         interfaz._tree = TreeviewFalso()
 
-        control_ejercicios.listar.side_effect = RuntimeError(
-            "Error de base de datos"
+        control_ejercicios.listar.side_effect = (
+            RuntimeError("Error de base de datos")
         )
 
         with patch.object(
@@ -301,7 +311,8 @@ class TestInterfazGestionEjercicios:
             interfaz.mostrarEjercicios()
 
         mock_error.assert_called_once_with(
-            "Error al cargar ejercicios: Error de base de datos"
+            "Error al cargar ejercicios: "
+            "Error de base de datos"
         )
 
     def test_crear_ejercicio_correctamente(
@@ -310,19 +321,22 @@ class TestInterfazGestionEjercicios:
         control_ejercicios,
         widgets_formulario,
     ):
-        """
-        Verifica la creación correcta de un ejercicio.
-        """
         self.asignar_widgets_formulario(
             interfaz,
             widgets_formulario,
         )
 
-        widgets_formulario["nombre"].valor = " Caminata "
+        widgets_formulario["nombre"].valor = (
+            " Caminata "
+        )
         widgets_formulario["tipo"].valor = " LISS "
-        widgets_formulario["descripcion"].valor = "Actividad suave"
+        widgets_formulario["descripcion"].valor = (
+            "Actividad suave"
+        )
         widgets_formulario["duracion"].valor = "30"
-        widgets_formulario["intensidad"].valor = " MEDIA "
+        widgets_formulario["intensidad"].valor = (
+            " MEDIA "
+        )
         widgets_formulario["calorias"].valor = "250.5"
 
         with patch.object(
@@ -332,7 +346,6 @@ class TestInterfazGestionEjercicios:
             interfaz,
             "mostrarEjercicios",
         ) as mock_mostrar_ejercicios:
-
             interfaz.crearEjercicio()
 
         control_ejercicios.crear_ejercicio.assert_called_once_with(
@@ -351,11 +364,17 @@ class TestInterfazGestionEjercicios:
         mock_mostrar_ejercicios.assert_called_once_with()
 
         assert widgets_formulario["nombre"].valor == ""
-        assert widgets_formulario["descripcion"].valor == ""
+        assert (
+            widgets_formulario["descripcion"].valor
+            == ""
+        )
         assert widgets_formulario["duracion"].valor == ""
         assert widgets_formulario["calorias"].valor == ""
         assert widgets_formulario["tipo"].valor == ""
-        assert widgets_formulario["intensidad"].valor == ""
+        assert (
+            widgets_formulario["intensidad"].valor
+            == ""
+        )
 
     def test_crear_ejercicio_maneja_value_error(
         self,
@@ -363,9 +382,6 @@ class TestInterfazGestionEjercicios:
         control_ejercicios,
         widgets_formulario,
     ):
-        """
-        Verifica el manejo de errores de conversión.
-        """
         self.asignar_widgets_formulario(
             interfaz,
             widgets_formulario,
@@ -373,8 +389,12 @@ class TestInterfazGestionEjercicios:
 
         widgets_formulario["nombre"].valor = "Caminata"
         widgets_formulario["tipo"].valor = "LISS"
-        widgets_formulario["descripcion"].valor = "Actividad suave"
-        widgets_formulario["duracion"].valor = "duración inválida"
+        widgets_formulario["descripcion"].valor = (
+            "Actividad suave"
+        )
+        widgets_formulario["duracion"].valor = (
+            "duración inválida"
+        )
         widgets_formulario["intensidad"].valor = "MEDIA"
         widgets_formulario["calorias"].valor = "250"
 
@@ -393,9 +413,6 @@ class TestInterfazGestionEjercicios:
         control_ejercicios,
         widgets_formulario,
     ):
-        """
-        Verifica el manejo de errores inesperados.
-        """
         self.asignar_widgets_formulario(
             interfaz,
             widgets_formulario,
@@ -403,13 +420,15 @@ class TestInterfazGestionEjercicios:
 
         widgets_formulario["nombre"].valor = "Caminata"
         widgets_formulario["tipo"].valor = "LISS"
-        widgets_formulario["descripcion"].valor = "Actividad suave"
+        widgets_formulario["descripcion"].valor = (
+            "Actividad suave"
+        )
         widgets_formulario["duracion"].valor = "30"
         widgets_formulario["intensidad"].valor = "MEDIA"
         widgets_formulario["calorias"].valor = "250"
 
-        control_ejercicios.crear_ejercicio.side_effect = RuntimeError(
-            "Error inesperado"
+        control_ejercicios.crear_ejercicio.side_effect = (
+            RuntimeError("Error inesperado")
         )
 
         with patch.object(
@@ -426,10 +445,6 @@ class TestInterfazGestionEjercicios:
         self,
         interfaz,
     ):
-        """
-        Verifica el error cuando no se selecciona
-        ningún ejercicio para editar.
-        """
         interfaz._tree = TreeviewFalso()
 
         with patch.object(
@@ -445,31 +460,79 @@ class TestInterfazGestionEjercicios:
     def test_editar_ejercicio_con_seleccion(
         self,
         interfaz,
+        control_ejercicios,
+        ejercicio,
+        widgets_formulario,
     ):
-        """
-        Verifica el mensaje actual de edición pendiente.
-        """
+        self.asignar_widgets_formulario(
+            interfaz,
+            widgets_formulario,
+        )
+
         interfaz._tree = TreeviewFalso()
         interfaz._tree.seleccion_actual = ["item1"]
+
+        interfaz._tree.items = {
+            "item1": {
+                "values": (
+                    1,
+                    "Caminata",
+                    "LISS",
+                    "Actividad suave",
+                    30,
+                    "MEDIA",
+                    250.0,
+                )
+            }
+        }
+
+        interfaz._ejercicios_por_id = {
+            1: ejercicio
+        }
+
+        widgets_formulario["nombre"].valor = (
+            "Caminata rápida"
+        )
+        widgets_formulario["tipo"].valor = "HIIT"
+        widgets_formulario["descripcion"].valor = (
+            "Caminata con mayor intensidad"
+        )
+        widgets_formulario["duracion"].valor = "40"
+        widgets_formulario["intensidad"].valor = "ALTA"
+        widgets_formulario["calorias"].valor = "350"
 
         with patch.object(
             interfaz,
             "mostrar_mensaje",
-        ) as mock_mensaje:
+        ) as mock_mensaje, patch.object(
+            interfaz,
+            "mostrarEjercicios",
+        ) as mock_mostrar_ejercicios:
             interfaz.editarEjercicio()
 
-        mock_mensaje.assert_called_once_with(
-            "Funcionalidad de edicion pendiente de implementar."
+        control_ejercicios.actualizar_ejercicio.assert_called_once_with(
+            ejercicio
         )
+
+        assert ejercicio.nombre == "Caminata rápida"
+        assert ejercicio.tipo == "HIIT"
+        assert ejercicio.descripcion == (
+            "Caminata con mayor intensidad"
+        )
+        assert ejercicio.duracion_minutos == 40
+        assert ejercicio.intensidad == "ALTA"
+        assert ejercicio.calorias_estimadas == 350.0
+
+        mock_mensaje.assert_called_once_with(
+            "Ejercicio actualizado correctamente."
+        )
+
+        mock_mostrar_ejercicios.assert_called_once_with()
 
     def test_eliminar_ejercicio_sin_seleccion(
         self,
         interfaz,
     ):
-        """
-        Verifica el error cuando no se selecciona
-        ningún ejercicio para eliminar.
-        """
         interfaz._tree = TreeviewFalso()
 
         with patch.object(
@@ -486,11 +549,9 @@ class TestInterfazGestionEjercicios:
         self,
         interfaz,
     ):
-        """
-        Verifica que no se elimine al cancelar la confirmación.
-        """
         interfaz._tree = TreeviewFalso()
         interfaz._tree.seleccion_actual = ["item1"]
+
         interfaz._tree.items = {
             "item1": {
                 "values": (
@@ -516,11 +577,9 @@ class TestInterfazGestionEjercicios:
         interfaz,
         control_ejercicios,
     ):
-        """
-        Verifica la eliminación correcta de un ejercicio.
-        """
         interfaz._tree = TreeviewFalso()
         interfaz._tree.seleccion_actual = ["item1"]
+
         interfaz._tree.items = {
             "item1": {
                 "values": (
@@ -541,10 +600,11 @@ class TestInterfazGestionEjercicios:
             interfaz,
             "mostrarEjercicios",
         ) as mock_mostrar_ejercicios:
-
             interfaz.eliminarEjercicio()
 
-        control_ejercicios.eliminar_ejercicio.assert_called_once_with(5)
+        control_ejercicios.eliminar_ejercicio.assert_called_once_with(
+            5
+        )
 
         mock_mensaje.assert_called_once_with(
             "Ejercicio eliminado correctamente."
@@ -557,11 +617,9 @@ class TestInterfazGestionEjercicios:
         interfaz,
         control_ejercicios,
     ):
-        """
-        Verifica el manejo de errores al eliminar.
-        """
         interfaz._tree = TreeviewFalso()
         interfaz._tree.seleccion_actual = ["item1"]
+
         interfaz._tree.items = {
             "item1": {
                 "values": (
@@ -571,8 +629,8 @@ class TestInterfazGestionEjercicios:
             }
         }
 
-        control_ejercicios.eliminar_ejercicio.side_effect = RuntimeError(
-            "No se pudo eliminar"
+        control_ejercicios.eliminar_ejercicio.side_effect = (
+            RuntimeError("No se pudo eliminar")
         )
 
         with patch.object(
@@ -583,7 +641,6 @@ class TestInterfazGestionEjercicios:
             interfaz,
             "mostrar_error",
         ) as mock_error:
-
             interfaz.eliminarEjercicio()
 
         mock_error.assert_called_once_with(
@@ -595,10 +652,6 @@ class TestInterfazGestionEjercicios:
         interfaz,
         widgets_formulario,
     ):
-        """
-        Verifica que se recarguen todos los ejercicios
-        cuando el texto de búsqueda está vacío.
-        """
         self.asignar_widgets_formulario(
             interfaz,
             widgets_formulario,
@@ -625,9 +678,6 @@ class TestInterfazGestionEjercicios:
         widgets_formulario,
         ejercicio,
     ):
-        """
-        Verifica la búsqueda de ejercicios por nombre.
-        """
         self.asignar_widgets_formulario(
             interfaz,
             widgets_formulario,
@@ -636,7 +686,9 @@ class TestInterfazGestionEjercicios:
         interfaz._tree = TreeviewFalso()
         widgets_formulario["buscar"].valor = "cami"
 
-        control_ejercicios.listar.return_value = [ejercicio]
+        control_ejercicios.listar.return_value = [
+            ejercicio
+        ]
 
         interfaz.buscarEjercicio()
 
@@ -650,6 +702,7 @@ class TestInterfazGestionEjercicios:
                         1,
                         "Caminata",
                         "LISS",
+                        "Actividad suave",
                         30,
                         "MEDIA",
                         250.0,
@@ -664,10 +717,6 @@ class TestInterfazGestionEjercicios:
         control_ejercicios,
         widgets_formulario,
     ):
-        """
-        Verifica que no se agreguen ejercicios
-        cuando no coinciden con la búsqueda.
-        """
         self.asignar_widgets_formulario(
             interfaz,
             widgets_formulario,
@@ -680,11 +729,14 @@ class TestInterfazGestionEjercicios:
         ejercicio.id_ejercicio = 1
         ejercicio.nombre = "Caminata"
         ejercicio.tipo = "LISS"
+        ejercicio.descripcion = "Actividad suave"
         ejercicio.duracion_minutos = 30
         ejercicio.calorias_estimadas = 250.0
         ejercicio.intensidad.value = "MEDIA"
 
-        control_ejercicios.listar.return_value = [ejercicio]
+        control_ejercicios.listar.return_value = [
+            ejercicio
+        ]
 
         interfaz.buscarEjercicio()
 
@@ -696,9 +748,6 @@ class TestInterfazGestionEjercicios:
         control_ejercicios,
         widgets_formulario,
     ):
-        """
-        Verifica el manejo de errores durante la búsqueda.
-        """
         self.asignar_widgets_formulario(
             interfaz,
             widgets_formulario,
@@ -707,8 +756,8 @@ class TestInterfazGestionEjercicios:
         interfaz._tree = TreeviewFalso()
         widgets_formulario["buscar"].valor = "cami"
 
-        control_ejercicios.listar.side_effect = RuntimeError(
-            "Error de búsqueda"
+        control_ejercicios.listar.side_effect = (
+            RuntimeError("Error de búsqueda")
         )
 
         with patch.object(
@@ -726,9 +775,6 @@ class TestInterfazGestionEjercicios:
         interfaz,
         widgets_formulario,
     ):
-        """
-        Verifica que se limpien los campos del formulario.
-        """
         self.asignar_widgets_formulario(
             interfaz,
             widgets_formulario,
@@ -753,4 +799,7 @@ class TestInterfazGestionEjercicios:
             assert entry.valor == ""
 
         assert widgets_formulario["tipo"].valor == ""
-        assert widgets_formulario["intensidad"].valor == ""
+        assert (
+            widgets_formulario["intensidad"].valor
+            == ""
+        )

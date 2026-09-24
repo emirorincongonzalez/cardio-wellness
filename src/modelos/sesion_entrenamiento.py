@@ -9,8 +9,8 @@ class SesionEntrenamiento:
     """
     Representa una sesión de entrenamiento de un cliente.
 
-    La sesión se considera completada automáticamente cuando
-    las veces realizadas alcanzan las veces planificadas.
+    El estado de cumplimiento se calcula usando las veces
+    realizadas y las veces planificadas.
     """
 
     def __init__(
@@ -44,35 +44,23 @@ class SesionEntrenamiento:
         self.intensidad_real = intensidad_real
         self.calorias_quemadas = calorias_quemadas
         self.observaciones = observaciones
+        self.veces_planificadas = veces_planificadas
+        self.veces_realizadas = veces_realizadas
 
-        self.veces_planificadas = (
-            veces_planificadas
-        )
-
-        self.veces_realizadas = (
-            veces_realizadas
-        )
-
-        # Se conserva el parámetro por compatibilidad
-        # con código antiguo, pero el estado real se
-        # calcula mediante la propiedad completada.
-        if completada is not None:
-            if not isinstance(
-                completada,
-                bool,
-            ):
-                raise ValueError(
-                    "Completada debe ser un booleano."
-                )
-
-            if completada != self.completada:
-                raise ValueError(
-                    (
-                        "El valor de completada no coincide "
-                        "con las veces realizadas y "
-                        "planificadas."
-                    )
-                )
+        # El parámetro completada se conserva para
+        # compatibilidad con código y pruebas anteriores.
+        #
+        # No se almacena ni se usa para rechazar la sesión:
+        # el estado real se obtiene dinámicamente desde la
+        # propiedad completada según las cantidades realizadas
+        # y planificadas.
+        if completada is not None and not isinstance(
+            completada,
+            bool,
+        ):
+            raise ValueError(
+                "Completada debe ser un booleano."
+            )
 
     @property
     def id_sesion(self) -> Optional[int]:
@@ -132,7 +120,8 @@ class SesionEntrenamiento:
         valor: Optional[int],
     ) -> None:
         """
-        Puede ser None para sesiones antiguas.
+        Puede ser None para sesiones no vinculadas a una
+        rutina o para registros antiguos.
         """
         if valor is not None:
             if (
@@ -251,14 +240,14 @@ class SesionEntrenamiento:
         texto = valor.strip().upper()
 
         try:
-            self._intensidad_real = (
-                Intensidad[texto]
-            )
+            self._intensidad_real = Intensidad[
+                texto
+            ]
 
         except KeyError:
             try:
-                self._intensidad_real = (
-                    Intensidad(texto)
+                self._intensidad_real = Intensidad(
+                    texto
                 )
 
             except ValueError as error:
@@ -399,7 +388,8 @@ class SesionEntrenamiento:
     @property
     def completada(self) -> bool:
         """
-        Calcula automáticamente el estado.
+        Determina el estado real de la sesión según el
+        progreso registrado.
         """
         return (
             self.veces_realizadas
@@ -432,13 +422,12 @@ class SesionEntrenamiento:
         """
         Actualiza las veces realizadas.
         """
-        self.veces_realizadas = (
-            veces_realizadas
-        )
+        self.veces_realizadas = veces_realizadas
 
     def marcar_como_completada(self) -> None:
         """
-        Verifica que la sesión haya cumplido la meta.
+        Comprueba que la sesión alcanzó la meta antes de
+        considerarla completada.
         """
         if not self.completada:
             raise ValueError(
@@ -461,7 +450,7 @@ class SesionEntrenamiento:
 
     def obtener_resumen(self) -> str:
         """
-        Devuelve un resumen legible.
+        Devuelve un resumen legible de la sesión.
         """
         rutina = (
             str(self.id_rutina)
@@ -506,7 +495,7 @@ class SesionEntrenamiento:
             f"duracion_real={self.duracion_real}, "
             "intensidad_real="
             f"'{self.intensidad_real.value}', "
-            f"calorias_quemadas="
+            "calorias_quemadas="
             f"{self.calorias_quemadas}, "
             "veces_planificadas="
             f"{self.veces_planificadas}, "

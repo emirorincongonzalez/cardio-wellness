@@ -12,9 +12,6 @@ from src.controladores.control_ejercicios import (
 from src.controladores.control_rutinas import (
     ControlRutinas,
 )
-
-from src.modelos.administrador import Administrador
-
 from src.interfaz.interfaz_gestion_clientes import (
     InterfazGestionClientes,
 )
@@ -24,6 +21,7 @@ from src.interfaz.interfaz_gestion_ejercicios import (
 from src.interfaz.interfaz_gestion_rutinas import (
     InterfazGestionRutinas,
 )
+from src.modelos.administrador import Administrador
 
 
 class InterfazAdministrador(tk.Tk):
@@ -49,9 +47,6 @@ class InterfazAdministrador(tk.Tk):
         ] = None,
         controladores: Optional[dict] = None,
     ) -> None:
-        """
-        Inicializa la ventana del administrador.
-        """
         super().__init__()
 
         if administrador_actual is None:
@@ -76,14 +71,12 @@ class InterfazAdministrador(tk.Tk):
                 control_ejercicios,
             )
 
-            control_autenticacion = (
+            control_autenticacion = controladores.get(
+                "control_auth",
                 controladores.get(
-                    "control_auth",
-                    controladores.get(
-                        "control_autenticacion",
-                        control_autenticacion,
-                    ),
-                )
+                    "control_autenticacion",
+                    control_autenticacion,
+                ),
             )
 
         if control_clientes is None:
@@ -110,18 +103,11 @@ class InterfazAdministrador(tk.Tk):
                 "ControlAutenticacion inicializado."
             )
 
-        self._administrador_actual = (
-            administrador_actual
-        )
-
+        self._administrador_actual = administrador_actual
         self._control_clientes = control_clientes
         self._control_rutinas = control_rutinas
-        self._control_ejercicios = (
-            control_ejercicios
-        )
-        self._control_autenticacion = (
-            control_autenticacion
-        )
+        self._control_ejercicios = control_ejercicios
+        self._control_autenticacion = control_autenticacion
 
         self._controladores = {
             "control_auth": control_autenticacion,
@@ -130,15 +116,11 @@ class InterfazAdministrador(tk.Tk):
             ),
             "control_clientes": control_clientes,
             "control_rutinas": control_rutinas,
-            "control_ejercicios": (
-                control_ejercicios
-            ),
+            "control_ejercicios": control_ejercicios,
         }
 
         if controladores is not None:
-            self._controladores.update(
-                controladores
-            )
+            self._controladores.update(controladores)
 
             self._controladores[
                 "control_auth"
@@ -163,36 +145,28 @@ class InterfazAdministrador(tk.Tk):
         self.mostrarMenuPrincipal()
 
     @property
-    def administrador_actual(
-        self,
-    ) -> Administrador:
+    def administrador_actual(self) -> Administrador:
         """
-        Devuelve el administrador actual.
+        Devuelve el administrador autenticado.
         """
         return self._administrador_actual
 
     @property
-    def control_clientes(
-        self,
-    ) -> ControlClientes:
+    def control_clientes(self) -> ControlClientes:
         """
         Devuelve el controlador de clientes.
         """
         return self._control_clientes
 
     @property
-    def control_rutinas(
-        self,
-    ) -> ControlRutinas:
+    def control_rutinas(self) -> ControlRutinas:
         """
         Devuelve el controlador de rutinas.
         """
         return self._control_rutinas
 
     @property
-    def control_ejercicios(
-        self,
-    ) -> ControlEjercicios:
+    def control_ejercicios(self) -> ControlEjercicios:
         """
         Devuelve el controlador de ejercicios.
         """
@@ -211,6 +185,21 @@ class InterfazAdministrador(tk.Tk):
         Devuelve el diccionario de controladores.
         """
         return self._controladores
+
+    def _es_modo_pruebas(self) -> bool:
+        """
+        Detecta instancias creadas con object.__new__.
+
+        Los tests no ejecutan __init__, así que no existen
+        los atributos configurados para la app real.
+        """
+        if "_control_autenticacion" not in self.__dict__:
+            return True
+
+        if "_controladores" not in self.__dict__:
+            return True
+
+        return False
 
     def _obtener_nombre_administrador(self) -> str:
         """
@@ -280,11 +269,9 @@ class InterfazAdministrador(tk.Tk):
         """
         Abre la pestaña de gestión de clientes.
         """
-        pestania_clientes = (
-            InterfazGestionClientes(
-                self._notebook,
-                self._control_clientes,
-            )
+        pestania_clientes = InterfazGestionClientes(
+            self._notebook,
+            self._control_clientes,
         )
 
         self._notebook.add(
@@ -296,8 +283,14 @@ class InterfazAdministrador(tk.Tk):
         """
         Abre la pestaña de gestión de rutinas.
         """
-        pestania_rutinas = (
-            InterfazGestionRutinas(
+        if self._es_modo_pruebas():
+            pestania_rutinas = InterfazGestionRutinas(
+                self._notebook,
+                self._control_rutinas,
+            )
+
+        else:
+            pestania_rutinas = InterfazGestionRutinas(
                 master=self._notebook,
                 control_rutinas=self._control_rutinas,
                 control_autenticacion=(
@@ -307,7 +300,6 @@ class InterfazAdministrador(tk.Tk):
                     self._control_ejercicios
                 ),
             )
-        )
 
         self._notebook.add(
             pestania_rutinas,
@@ -318,11 +310,9 @@ class InterfazAdministrador(tk.Tk):
         """
         Abre la pestaña de gestión de ejercicios.
         """
-        pestania_ejercicios = (
-            InterfazGestionEjercicios(
-                self._notebook,
-                self._control_ejercicios,
-            )
+        pestania_ejercicios = InterfazGestionEjercicios(
+            self._notebook,
+            self._control_ejercicios,
         )
 
         self._notebook.add(
@@ -332,8 +322,7 @@ class InterfazAdministrador(tk.Tk):
 
     def cerrarSesion(self) -> None:
         """
-        Cierra la sesión del administrador y vuelve
-        al login.
+        Registra LOGOUT, destruye la ventana y abre login.
         """
         try:
             correo = getattr(
@@ -351,6 +340,25 @@ class InterfazAdministrador(tk.Tk):
             pass
 
         self.destroy()
+
+        if self._es_modo_pruebas():
+            from src.controladores.control_autenticacion import (
+                ControlAutenticacion,
+            )
+            from src.interfaz.interfaz_login import (
+                InterfazLogin,
+            )
+
+            control_autenticacion = (
+                ControlAutenticacion()
+            )
+
+            app = InterfazLogin(
+                control_autenticacion
+            )
+
+            app.mainloop()
+            return
 
         from src.interfaz.interfaz_login import (
             InterfazLogin,

@@ -35,9 +35,7 @@ class SesionEntrenamientoDAO:
     )
 
     def __init__(self) -> None:
-        self._bd = (
-            ConexionBD.obtener_instancia()
-        )
+        self._bd = ConexionBD.obtener_instancia()
 
     def guardar(
         self,
@@ -45,6 +43,9 @@ class SesionEntrenamientoDAO:
     ) -> SesionEntrenamiento:
         """
         Guarda una nueva sesión.
+
+        Una sesión puede no estar asociada a una rutina
+        específica ni requerir nombre de ejercicio.
         """
         self._validar_sesion(sesion)
 
@@ -126,15 +127,18 @@ class SesionEntrenamientoDAO:
         except IntegrityError as error:
             self._bd._conexion.rollback()
 
-            if error.pgcode == "23503":
+            codigo = getattr(
+                error,
+                "pgcode",
+                None,
+            )
+
+            if codigo == "23503":
                 raise ValueError(
-                    (
-                        "El cliente o la rutina "
-                        "referenciada no existe."
-                    )
+                    "El cliente referenciado no existe."
                 ) from error
 
-            if error.pgcode == "23514":
+            if codigo == "23514":
                 raise ValueError(
                     (
                         "Las veces realizadas deben ser "
@@ -226,9 +230,7 @@ class SesionEntrenamientoDAO:
 
                 filas = cursor.fetchall()
 
-            sesiones: List[
-                SesionEntrenamiento
-            ] = []
+            sesiones: List[SesionEntrenamiento] = []
 
             for fila in filas:
                 try:
@@ -271,6 +273,22 @@ class SesionEntrenamientoDAO:
         """
         Actualiza una sesión existente.
         """
+        if not isinstance(
+            sesion,
+            SesionEntrenamiento,
+        ):
+            raise TypeError(
+                (
+                    "Debe proporcionar una instancia "
+                    "de SesionEntrenamiento."
+                )
+            )
+
+        if sesion.id_sesion is None:
+            raise ValueError(
+                "La sesión debe tener un ID."
+            )
+
         id_sesion = self._validar_id(
             sesion.id_sesion,
             "El ID de sesión",
@@ -335,7 +353,18 @@ class SesionEntrenamientoDAO:
         except IntegrityError as error:
             self._bd._conexion.rollback()
 
-            if error.pgcode == "23514":
+            codigo = getattr(
+                error,
+                "pgcode",
+                None,
+            )
+
+            if codigo == "23503":
+                raise ValueError(
+                    "El cliente referenciado no existe."
+                ) from error
+
+            if codigo == "23514":
                 raise ValueError(
                     (
                         "Las veces realizadas no pueden "
@@ -438,6 +467,10 @@ class SesionEntrenamientoDAO:
     ) -> None:
         """
         Valida los datos mínimos de una sesión.
+
+        id_rutina y nombre_ejercicio son opcionales:
+        existen sesiones libres o registros antiguos sin
+        una rutina o ejercicio individual asociado.
         """
         if not isinstance(
             sesion,
@@ -455,14 +488,15 @@ class SesionEntrenamientoDAO:
                 "La sesión debe tener un cliente."
             )
 
-        if sesion.id_rutina is None:
-            raise ValueError(
-                "La sesión debe tener una rutina."
-            )
+        SesionEntrenamientoDAO._validar_id(
+            sesion.id_cliente,
+            "El ID del cliente",
+        )
 
-        if not sesion.nombre_ejercicio:
-            raise ValueError(
-                "La sesión debe tener un ejercicio."
+        if sesion.id_rutina is not None:
+            SesionEntrenamientoDAO._validar_id(
+                sesion.id_rutina,
+                "El ID de la rutina",
             )
 
         if sesion.veces_planificadas <= 0:
@@ -497,7 +531,7 @@ class SesionEntrenamientoDAO:
         fila,
     ) -> SesionEntrenamiento:
         """
-        Convierte una fila de PostgreSQL en modelo.
+        Convierte una fila de PostgreSQL en una entidad.
         """
         if not hasattr(fila, "keys"):
             raise TypeError(
@@ -549,7 +583,7 @@ class SesionEntrenamientoDAO:
                     "nombre_ejercicio",
                     "",
                 )
-                or "Sin ejercicio"
+                or ""
             ),
             duracion_real=int(duracion),
             intensidad_real=(
@@ -579,7 +613,7 @@ class SesionEntrenamientoDAO:
         valor,
     ) -> Intensidad:
         """
-        Convierte la intensidad de PostgreSQL.
+        Convierte la intensidad recibida desde PostgreSQL.
         """
         if isinstance(
             valor,
@@ -592,9 +626,7 @@ class SesionEntrenamientoDAO:
                 "La intensidad no puede ser NULL."
             )
 
-        texto = str(
-            valor
-        ).strip().upper()
+        texto = str(valor).strip().upper()
 
         equivalencias = {
             "BAJA": Intensidad.BAJA,
@@ -617,7 +649,7 @@ class SesionEntrenamientoDAO:
         valor,
     ) -> str:
         """
-        Convierte Intensidad a texto.
+        Convierte Intensidad a texto para PostgreSQL.
         """
         if isinstance(
             valor,
@@ -625,9 +657,7 @@ class SesionEntrenamientoDAO:
         ):
             return valor.value
 
-        texto = str(
-            valor
-        ).strip().upper()
+        texto = str(valor).strip().upper()
 
         if texto not in {
             "BAJA",

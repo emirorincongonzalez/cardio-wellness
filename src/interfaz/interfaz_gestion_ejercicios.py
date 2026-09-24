@@ -3,13 +3,9 @@ from typing import List
 import tkinter as tk
 from tkinter import ttk
 
-from src.controladores.control_ejercicios import (
-    ControlEjercicios,
-)
-from src.modelos.ejercicio_cardio import (
-    EjercicioCardio,
-)
+from src.controladores.control_ejercicios import ControlEjercicios
 from src.interfaz.interfaz_base import InterfazBase
+from src.modelos.ejercicio_cardio import EjercicioCardio
 
 
 class InterfazGestionEjercicios(InterfazBase):
@@ -33,11 +29,10 @@ class InterfazGestionEjercicios(InterfazBase):
             expand=True,
         )
 
-        self._control_ejercicios = (
-            control_ejercicios
-        )
-
+        self._control_ejercicios = control_ejercicios
         self._id_ejercicio_editando = None
+        self._descripciones_ejercicios = {}
+        self._ejercicios_por_id = {}
 
         self.mostrarFormularioEjercicio()
         self.mostrarEjercicios()
@@ -50,49 +45,46 @@ class InterfazGestionEjercicios(InterfazBase):
 
     def mostrarFormularioEjercicio(self) -> None:
         """
-        Construye el formulario.
+        Construye el formulario de ejercicios.
         """
         form = ttk.LabelFrame(
             self,
             text="Registrar Nuevo Ejercicio",
             padding=10,
         )
-
         form.pack(
             fill="x",
             pady=5,
         )
 
-        ttk.Label(
-            form,
-            text="Nombre:",
-        ).grid(
-            row=0,
-            column=0,
-            sticky="w",
-            padx=5,
-            pady=3,
+        etiquetas = (
+            ("Nombre:", 0, 0),
+            ("Tipo:", 0, 2),
+            ("Descripcion:", 1, 0),
+            ("Duracion (min):", 1, 2),
+            ("Intensidad:", 2, 0),
+            ("Calorias estimadas:", 2, 2),
         )
+
+        for texto, fila, columna in etiquetas:
+            ttk.Label(
+                form,
+                text=texto,
+            ).grid(
+                row=fila,
+                column=columna,
+                sticky="w",
+                padx=5,
+                pady=3,
+            )
 
         self._ent_nombre = ttk.Entry(
             form,
             width=20,
         )
-
         self._ent_nombre.grid(
             row=0,
             column=1,
-            padx=5,
-            pady=3,
-        )
-
-        ttk.Label(
-            form,
-            text="Tipo:",
-        ).grid(
-            row=0,
-            column=2,
-            sticky="w",
             padx=5,
             pady=3,
         )
@@ -106,21 +98,9 @@ class InterfazGestionEjercicios(InterfazBase):
             ),
             width=18,
         )
-
         self._cb_tipo.grid(
             row=0,
             column=3,
-            padx=5,
-            pady=3,
-        )
-
-        ttk.Label(
-            form,
-            text="Descripcion:",
-        ).grid(
-            row=1,
-            column=0,
-            sticky="w",
             padx=5,
             pady=3,
         )
@@ -129,21 +109,9 @@ class InterfazGestionEjercicios(InterfazBase):
             form,
             width=20,
         )
-
         self._ent_descripcion.grid(
             row=1,
             column=1,
-            padx=5,
-            pady=3,
-        )
-
-        ttk.Label(
-            form,
-            text="Duracion (min):",
-        ).grid(
-            row=1,
-            column=2,
-            sticky="w",
             padx=5,
             pady=3,
         )
@@ -152,21 +120,9 @@ class InterfazGestionEjercicios(InterfazBase):
             form,
             width=20,
         )
-
         self._ent_duracion.grid(
             row=1,
             column=3,
-            padx=5,
-            pady=3,
-        )
-
-        ttk.Label(
-            form,
-            text="Intensidad:",
-        ).grid(
-            row=2,
-            column=0,
-            sticky="w",
             padx=5,
             pady=3,
         )
@@ -181,21 +137,9 @@ class InterfazGestionEjercicios(InterfazBase):
             state="readonly",
             width=18,
         )
-
         self._cb_intensidad.grid(
             row=2,
             column=1,
-            padx=5,
-            pady=3,
-        )
-
-        ttk.Label(
-            form,
-            text="Calorias estimadas:",
-        ).grid(
-            row=2,
-            column=2,
-            sticky="w",
             padx=5,
             pady=3,
         )
@@ -204,7 +148,6 @@ class InterfazGestionEjercicios(InterfazBase):
             form,
             width=20,
         )
-
         self._ent_calorias.grid(
             row=2,
             column=3,
@@ -217,7 +160,6 @@ class InterfazGestionEjercicios(InterfazBase):
             text="Modo: crear ejercicio",
             foreground="#555555",
         )
-
         self._lbl_modo.grid(
             row=3,
             column=0,
@@ -227,9 +169,8 @@ class InterfazGestionEjercicios(InterfazBase):
             pady=5,
         )
 
-        frame_btns = ttk.Frame(form)
-
-        frame_btns.grid(
+        botones = ttk.Frame(form)
+        botones.grid(
             row=3,
             column=3,
             sticky="e",
@@ -237,7 +178,7 @@ class InterfazGestionEjercicios(InterfazBase):
         )
 
         ttk.Button(
-            frame_btns,
+            botones,
             text="Crear",
             command=self.crearEjercicio,
         ).pack(
@@ -246,7 +187,7 @@ class InterfazGestionEjercicios(InterfazBase):
         )
 
         ttk.Button(
-            frame_btns,
+            botones,
             text="Editar",
             command=self.editarEjercicio,
         ).pack(
@@ -255,7 +196,7 @@ class InterfazGestionEjercicios(InterfazBase):
         )
 
         ttk.Button(
-            frame_btns,
+            botones,
             text="Cancelar",
             command=self._cancelar_edicion,
         ).pack(
@@ -264,7 +205,7 @@ class InterfazGestionEjercicios(InterfazBase):
         )
 
         ttk.Button(
-            frame_btns,
+            botones,
             text="Eliminar",
             command=self.eliminarEjercicio,
         ).pack(
@@ -272,18 +213,17 @@ class InterfazGestionEjercicios(InterfazBase):
             padx=3,
         )
 
-        frame_buscar = ttk.Frame(
+        buscar = ttk.Frame(
             self,
             padding=5,
         )
-
-        frame_buscar.pack(
+        buscar.pack(
             fill="x",
             pady=5,
         )
 
         ttk.Label(
-            frame_buscar,
+            buscar,
             text="Buscar por nombre:",
         ).pack(
             side="left",
@@ -291,17 +231,16 @@ class InterfazGestionEjercicios(InterfazBase):
         )
 
         self._ent_buscar = ttk.Entry(
-            frame_buscar,
+            buscar,
             width=25,
         )
-
         self._ent_buscar.pack(
             side="left",
             padx=5,
         )
 
         ttk.Button(
-            frame_buscar,
+            buscar,
             text="Buscar",
             command=self.buscarEjercicio,
         ).pack(
@@ -310,7 +249,7 @@ class InterfazGestionEjercicios(InterfazBase):
         )
 
         ttk.Button(
-            frame_buscar,
+            buscar,
             text="Mostrar todos",
             command=self.mostrarEjercicios,
         ).pack(
@@ -318,11 +257,61 @@ class InterfazGestionEjercicios(InterfazBase):
             padx=5,
         )
 
+    def _insertar_ejercicio(
+        self,
+        ejercicio: EjercicioCardio,
+    ) -> None:
+        """
+        Inserta un ejercicio en la tabla y conserva
+        su objeto completo para mostrar y editar datos.
+        """
+        intensidad = getattr(
+            ejercicio.intensidad,
+            "value",
+            str(ejercicio.intensidad),
+        )
+
+        descripcion = str(
+            getattr(
+                ejercicio,
+                "descripcion",
+                "",
+            )
+        )
+
+        if "_descripciones_ejercicios" not in self.__dict__:
+            self._descripciones_ejercicios = {}
+
+        if "_ejercicios_por_id" not in self.__dict__:
+            self._ejercicios_por_id = {}
+
+        self._descripciones_ejercicios[
+            ejercicio.id_ejercicio
+        ] = descripcion
+
+        self._ejercicios_por_id[
+            ejercicio.id_ejercicio
+        ] = ejercicio
+
+        self._tree.insert(
+            "",
+            "end",
+            values=(
+                ejercicio.id_ejercicio,
+                ejercicio.nombre,
+                ejercicio.tipo,
+                descripcion,
+                ejercicio.duracion_minutos,
+                intensidad,
+                ejercicio.calorias_estimadas,
+            ),
+        )
+
     def mostrarEjercicios(self) -> None:
         """
-        Carga los ejercicios en la tabla.
+        Carga ejercicios en la tabla.
         """
-        if hasattr(self, "_tree"):
+        if "_tree" in self.__dict__:
             for item in self._tree.get_children():
                 self._tree.delete(item)
 
@@ -349,7 +338,7 @@ class InterfazGestionEjercicios(InterfazBase):
                 "ID": 60,
                 "Nombre": 150,
                 "Tipo": 130,
-                "Descripcion": 180,
+                "Descripcion": 280,
                 "Duracion": 100,
                 "Intensidad": 110,
                 "Calorias": 110,
@@ -364,7 +353,11 @@ class InterfazGestionEjercicios(InterfazBase):
                 self._tree.column(
                     columna,
                     width=anchos[columna],
-                    anchor="center",
+                    anchor=(
+                        "w"
+                        if columna == "Descripcion"
+                        else "center"
+                    ),
                 )
 
             self._tree.pack(
@@ -378,150 +371,25 @@ class InterfazGestionEjercicios(InterfazBase):
                 self._cargar_ejercicio_seleccionado,
             )
 
-            self._tree.bind(
-                "<Double-1>",
-                self._editar_con_doble_click,
+        try:
+            ejercicios: List[EjercicioCardio] = (
+                self._control_ejercicios.listar()
             )
 
-        try:
-            ejercicios: List[
-                EjercicioCardio
-            ] = self._control_ejercicios.listar()
+            self._descripciones_ejercicios = {}
+            self._ejercicios_por_id = {}
 
             for ejercicio in ejercicios:
-                intensidad = getattr(
-                    ejercicio.intensidad,
-                    "value",
-                    str(ejercicio.intensidad),
-                )
-
-                descripcion = getattr(
-                    ejercicio,
-                    "descripcion",
-                    "",
-                )
-
-                self._tree.insert(
-                    "",
-                    "end",
-                    values=(
-                        ejercicio.id_ejercicio,
-                        ejercicio.nombre,
-                        ejercicio.tipo,
-                        descripcion,
-                        ejercicio.duracion_minutos,
-                        intensidad,
-                        ejercicio.calorias_estimadas,
-                    ),
-                )
+                self._insertar_ejercicio(ejercicio)
 
         except Exception as error:
             self.mostrar_error(
                 f"Error al cargar ejercicios: {error}"
             )
 
-    def _cargar_ejercicio_seleccionado(
-        self,
-        _evento=None,
-    ) -> None:
-        """
-        Carga los datos del ejercicio seleccionado.
-        """
-        seleccion = self._tree.selection()
-
-        if not seleccion:
-            return
-
-        valores = self._tree.item(
-            seleccion[0],
-            "values",
-        )
-
-        if not valores:
-            return
-
-        try:
-            self._id_ejercicio_editando = int(
-                valores[0]
-            )
-
-        except (
-            TypeError,
-            ValueError,
-        ) as error:
-            self.mostrar_error(
-                "El ID del ejercicio no es válido."
-            )
-            return
-
-        self._ent_nombre.delete(
-            0,
-            tk.END,
-        )
-
-        self._ent_nombre.insert(
-            0,
-            valores[1],
-        )
-
-        self._cb_tipo.set(
-            valores[2],
-        )
-
-        self._ent_descripcion.delete(
-            0,
-            tk.END,
-        )
-
-        self._ent_descripcion.insert(
-            0,
-            valores[3],
-        )
-
-        self._ent_duracion.delete(
-            0,
-            tk.END,
-        )
-
-        self._ent_duracion.insert(
-            0,
-            valores[4],
-        )
-
-        self._cb_intensidad.set(
-            valores[5],
-        )
-
-        self._ent_calorias.delete(
-            0,
-            tk.END,
-        )
-
-        self._ent_calorias.insert(
-            0,
-            valores[6],
-        )
-
-        self._lbl_modo.config(
-            text=(
-                "Modo: editando ejercicio "
-                f"#{self._id_ejercicio_editando}"
-            ),
-            foreground="#174ea6",
-        )
-
-    def _editar_con_doble_click(
-        self,
-        _evento=None,
-    ) -> None:
-        """
-        Permite editar haciendo doble clic.
-        """
-        self.editarEjercicio()
-
     def crearEjercicio(self) -> None:
         """
-        Crea un ejercicio nuevo.
+        Crea un ejercicio.
         """
         try:
             datos = self._leer_datos_formulario()
@@ -529,14 +397,14 @@ class InterfazGestionEjercicios(InterfazBase):
             self._control_ejercicios.crear_ejercicio(
                 nombre=datos["nombre"],
                 descripcion=datos["descripcion"],
-                duracion_minutos=(
-                    datos["duracion_minutos"]
-                ),
-                calorias_estimadas=(
-                    datos["calorias_estimadas"]
-                ),
                 tipo=datos["tipo"],
+                duracion_minutos=datos[
+                    "duracion_minutos"
+                ],
                 intensidad=datos["intensidad"],
+                calorias_estimadas=datos[
+                    "calorias_estimadas"
+                ],
             )
 
             self.mostrar_mensaje(
@@ -556,54 +424,70 @@ class InterfazGestionEjercicios(InterfazBase):
 
     def editarEjercicio(self) -> None:
         """
-        Edita el ejercicio seleccionado.
+        Actualiza el ejercicio seleccionado.
         """
-        if self._id_ejercicio_editando is None:
-            seleccion = self._tree.selection()
+        seleccion = self._tree.selection()
 
-            if not seleccion:
-                self.mostrar_error(
-                    "Seleccione un ejercicio para editar."
-                )
-                return
-
-            valores = self._tree.item(
-                seleccion[0],
-                "values",
+        if not seleccion:
+            self.mostrar_error(
+                "Seleccione un ejercicio para editar."
             )
+            return
 
-            try:
-                self._id_ejercicio_editando = int(
-                    valores[0]
-                )
+        datos_item = self._tree.item(
+            seleccion[0]
+        )
 
-            except (
-                TypeError,
-                ValueError,
-            ):
-                self.mostrar_error(
-                    "El ID del ejercicio no es válido."
-                )
-                return
+        valores = datos_item.get(
+            "values",
+            (),
+        )
+
+        if not valores:
+            self.mostrar_error(
+                "No se pudo obtener el ejercicio seleccionado."
+            )
+            return
+
+        try:
+            id_ejercicio = int(valores[0])
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            self.mostrar_error(
+                "El ID del ejercicio no es válido."
+            )
+            return
+
+        ejercicio = self._ejercicios_por_id.get(
+            id_ejercicio
+        )
+
+        if ejercicio is None:
+            self.mostrar_error(
+                "No se encontró el ejercicio seleccionado."
+            )
+            return
 
         try:
             datos = self._leer_datos_formulario()
 
-            ejercicio = self._crear_ejercicio(
-                datos
+            ejercicio.nombre = datos["nombre"]
+            ejercicio.descripcion = datos["descripcion"]
+            ejercicio.tipo = datos["tipo"]
+            ejercicio.duracion_minutos = (
+                datos["duracion_minutos"]
+            )
+            ejercicio.intensidad = datos["intensidad"]
+            ejercicio.calorias_estimadas = (
+                datos["calorias_estimadas"]
             )
 
-            resultado = (
-                self._control_ejercicios
-                .actualizar_ejercicio(
-                    ejercicio
-                )
+            self._control_ejercicios.actualizar_ejercicio(
+                ejercicio
             )
-
-            if resultado is False:
-                raise ValueError(
-                    "No se pudo actualizar el ejercicio."
-                )
 
             self.mostrar_mensaje(
                 "Ejercicio actualizado correctamente."
@@ -633,9 +517,17 @@ class InterfazGestionEjercicios(InterfazBase):
             return
 
         valores = self._tree.item(
-            seleccion[0],
+            seleccion[0]
+        ).get(
             "values",
+            (),
         )
+
+        if not valores:
+            self.mostrar_error(
+                "El ID del ejercicio no es válido."
+            )
+            return
 
         try:
             id_ejercicio = int(valores[0])
@@ -650,8 +542,7 @@ class InterfazGestionEjercicios(InterfazBase):
             return
 
         if not self.confirmar_accion(
-            "¿Eliminar el ejercicio con "
-            f"ID {id_ejercicio}?"
+            f"Eliminar el ejercicio con ID {id_ejercicio}?"
         ):
             return
 
@@ -664,8 +555,19 @@ class InterfazGestionEjercicios(InterfazBase):
                 "Ejercicio eliminado correctamente."
             )
 
-            self._limpiar_formulario()
             self.mostrarEjercicios()
+
+            campos = {
+                "_ent_nombre",
+                "_ent_descripcion",
+                "_ent_duracion",
+                "_ent_calorias",
+                "_cb_tipo",
+                "_cb_intensidad",
+            }
+
+            if campos.issubset(self.__dict__):
+                self._limpiar_formulario()
 
         except Exception as error:
             self.mostrar_error(
@@ -676,12 +578,7 @@ class InterfazGestionEjercicios(InterfazBase):
         """
         Busca ejercicios por nombre.
         """
-        texto = (
-            self._ent_buscar
-            .get()
-            .strip()
-            .lower()
-        )
+        texto = self._ent_buscar.get().strip().lower()
 
         if not texto:
             self.mostrarEjercicios()
@@ -691,84 +588,115 @@ class InterfazGestionEjercicios(InterfazBase):
             self._tree.delete(item)
 
         try:
-            ejercicios = (
-                self._control_ejercicios.listar()
-            )
+            ejercicios = self._control_ejercicios.listar()
+
+            self._descripciones_ejercicios = {}
+            self._ejercicios_por_id = {}
 
             for ejercicio in ejercicios:
-                if texto in (
-                    ejercicio.nombre.lower()
-                ):
-                    intensidad = getattr(
-                        ejercicio.intensidad,
-                        "value",
-                        str(ejercicio.intensidad),
-                    )
-
-                    descripcion = getattr(
-                        ejercicio,
-                        "descripcion",
-                        "",
-                    )
-
-                    self._tree.insert(
-                        "",
-                        "end",
-                        values=(
-                            ejercicio.id_ejercicio,
-                            ejercicio.nombre,
-                            ejercicio.tipo,
-                            descripcion,
-                            ejercicio.duracion_minutos,
-                            intensidad,
-                            ejercicio.calorias_estimadas,
-                        ),
-                    )
+                if texto in ejercicio.nombre.lower():
+                    self._insertar_ejercicio(ejercicio)
 
         except Exception as error:
             self.mostrar_error(
                 f"Error al buscar: {error}"
             )
 
+    def _cargar_ejercicio_seleccionado(
+        self,
+        _evento=None,
+    ) -> None:
+        """
+        Carga el ejercicio seleccionado en el formulario.
+        """
+        seleccion = self._tree.selection()
+
+        if not seleccion:
+            return
+
+        valores = self._tree.item(
+            seleccion[0]
+        ).get(
+            "values",
+            (),
+        )
+
+        if not valores:
+            return
+
+        try:
+            id_ejercicio = int(valores[0])
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            self.mostrar_error(
+                "El ID del ejercicio no es válido."
+            )
+            return
+
+        ejercicio = self._ejercicios_por_id.get(
+            id_ejercicio
+        )
+
+        if ejercicio is None:
+            self.mostrar_error(
+                "No se encontró el ejercicio seleccionado."
+            )
+            return
+
+        self._id_ejercicio_editando = id_ejercicio
+
+        self._ent_nombre.delete(0, tk.END)
+        self._ent_nombre.insert(0, ejercicio.nombre)
+
+        self._ent_descripcion.delete(0, tk.END)
+        self._ent_descripcion.insert(
+            0,
+            ejercicio.descripcion,
+        )
+
+        self._cb_tipo.set(ejercicio.tipo)
+
+        self._ent_duracion.delete(0, tk.END)
+        self._ent_duracion.insert(
+            0,
+            str(ejercicio.duracion_minutos),
+        )
+
+        intensidad = getattr(
+            ejercicio.intensidad,
+            "value",
+            str(ejercicio.intensidad),
+        )
+        self._cb_intensidad.set(intensidad)
+
+        self._ent_calorias.delete(0, tk.END)
+        self._ent_calorias.insert(
+            0,
+            str(ejercicio.calorias_estimadas),
+        )
+
+        if "_lbl_modo" in self.__dict__:
+            self._lbl_modo.config(
+                text=(
+                    "Modo: editando ejercicio "
+                    f"#{id_ejercicio}"
+                ),
+                foreground="#174ea6",
+            )
+
     def _leer_datos_formulario(self) -> dict:
         """
-        Lee y valida los datos del formulario.
+        Lee y valida los campos del formulario.
         """
-        nombre = (
-            self._ent_nombre
-            .get()
-            .strip()
-        )
-
-        tipo = (
-            self._cb_tipo
-            .get()
-            .strip()
-        )
-
-        descripcion = (
-            self._ent_descripcion
-            .get()
-            .strip()
-        )
-
-        duracion_texto = (
-            self._ent_duracion
-            .get()
-            .strip()
-        )
-
-        intensidad = (
-            self._cb_intensidad
-            .get()
-            .strip()
-        )
-
-        calorias_texto = (
-            self._ent_calorias
-            .get()
-            .strip()
-        )
+        nombre = self._ent_nombre.get().strip()
+        tipo = self._cb_tipo.get().strip()
+        descripcion = self._ent_descripcion.get().strip()
+        duracion_texto = self._ent_duracion.get().strip()
+        intensidad = self._cb_intensidad.get().strip()
+        calorias_texto = self._ent_calorias.get().strip()
 
         if not nombre:
             raise ValueError(
@@ -801,9 +729,7 @@ class InterfazGestionEjercicios(InterfazBase):
             )
 
         try:
-            duracion = int(
-                duracion_texto
-            )
+            duracion = int(duracion_texto)
 
         except ValueError as error:
             raise ValueError(
@@ -811,9 +737,7 @@ class InterfazGestionEjercicios(InterfazBase):
             ) from error
 
         try:
-            calorias = float(
-                calorias_texto
-            )
+            calorias = float(calorias_texto)
 
         except ValueError as error:
             raise ValueError(
@@ -822,14 +746,12 @@ class InterfazGestionEjercicios(InterfazBase):
 
         if duracion <= 0:
             raise ValueError(
-                "La duración debe ser mayor "
-                "que cero."
+                "La duración debe ser mayor que cero."
             )
 
         if calorias <= 0:
             raise ValueError(
-                "Las calorías deben ser mayores "
-                "que cero."
+                "Las calorías deben ser mayores que cero."
             )
 
         return {
@@ -841,41 +763,11 @@ class InterfazGestionEjercicios(InterfazBase):
             "calorias_estimadas": calorias,
         }
 
-    def _crear_ejercicio(
-        self,
-        datos: dict,
-    ) -> EjercicioCardio:
-        """
-        Crea el objeto para actualizar.
-        """
-        ejercicio = EjercicioCardio(
-            nombre=datos["nombre"],
-            descripcion=datos["descripcion"],
-            tipo=datos["tipo"],
-            duracion_minutos=(
-                datos["duracion_minutos"]
-            ),
-            intensidad=datos["intensidad"],
-            calorias_estimadas=(
-                datos["calorias_estimadas"]
-            ),
-        )
-
-        ejercicio.id_ejercicio = (
-            self._id_ejercicio_editando
-        )
-
-        return ejercicio
-
     def _cancelar_edicion(self) -> None:
         """
         Cancela la edición actual.
         """
         self._limpiar_formulario()
-
-        self._tree.selection_remove(
-            self._tree.selection()
-        )
 
     def _limpiar_formulario(self) -> None:
         """
@@ -887,17 +779,14 @@ class InterfazGestionEjercicios(InterfazBase):
             self._ent_duracion,
             self._ent_calorias,
         ):
-            entry.delete(
-                0,
-                tk.END,
-            )
+            entry.delete(0, tk.END)
 
         self._cb_tipo.set("")
         self._cb_intensidad.set("")
-
         self._id_ejercicio_editando = None
 
-        self._lbl_modo.config(
-            text="Modo: crear ejercicio",
-            foreground="#555555",
-        )
+        if "_lbl_modo" in self.__dict__:
+            self._lbl_modo.config(
+                text="Modo: crear ejercicio",
+                foreground="#555555",
+            )

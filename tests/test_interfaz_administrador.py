@@ -1,6 +1,7 @@
 """Pruebas unitarias para InterfazAdministrador."""
-
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
+import tkinter as tk
 
 import pytest
 
@@ -350,3 +351,330 @@ def test_controladores_se_crean_automaticamente(administrador):
     assert ventana.control_clientes is clientes
     assert ventana.control_rutinas is rutinas
     assert ventana.control_ejercicios is ejercicios
+
+def crear_administrador_real():
+    """
+    Crea un administrador simple sin MagicMock para pruebas puntuales.
+    """
+    return SimpleNamespace(
+        nombre="Ana",
+        correo_electronico="ana@admin.com",
+        obtener_nombre_completo=lambda: "Ana López",
+    )
+
+
+def test_constructor_configura_ventana_con_controladores_explicitos(
+    administrador,
+    controles,
+):
+    """
+    Verifica el constructor real sin iniciar una ventana Tk.
+    """
+    control_autenticacion = MagicMock()
+
+    with patch.object(
+        tk.Tk,
+        "__init__",
+        return_value=None,
+    ) as mock_tk_init, patch.object(
+        InterfazAdministrador,
+        "title",
+    ) as mock_title, patch.object(
+        InterfazAdministrador,
+        "geometry",
+    ) as mock_geometry, patch.object(
+        InterfazAdministrador,
+        "resizable",
+    ) as mock_resizable, patch.object(
+        InterfazAdministrador,
+        "mostrarMenuPrincipal",
+    ) as mock_menu:
+        ventana = InterfazAdministrador(
+            administrador_actual=administrador,
+            control_clientes=controles["clientes"],
+            control_rutinas=controles["rutinas"],
+            control_ejercicios=controles["ejercicios"],
+            control_autenticacion=control_autenticacion,
+        )
+
+    mock_tk_init.assert_called_once_with()
+
+    mock_title.assert_called_once_with(
+        "Cardio Wellness - Administrador: Juan Perez"
+    )
+
+    mock_geometry.assert_called_once_with("900x600")
+    mock_resizable.assert_called_once_with(True, True)
+    mock_menu.assert_called_once_with()
+
+    assert ventana.administrador_actual is administrador
+    assert ventana.control_clientes is controles["clientes"]
+    assert ventana.control_rutinas is controles["rutinas"]
+    assert ventana.control_ejercicios is controles["ejercicios"]
+    assert ventana.control_autenticacion is control_autenticacion
+
+    assert ventana.controladores == {
+        "control_auth": control_autenticacion,
+        "control_autenticacion": control_autenticacion,
+        "control_clientes": controles["clientes"],
+        "control_rutinas": controles["rutinas"],
+        "control_ejercicios": controles["ejercicios"],
+    }
+
+
+def test_constructor_usa_diccionario_controladores(
+    administrador,
+):
+    """
+    Verifica que el constructor obtenga dependencias desde controladores.
+    """
+    clientes = MagicMock()
+    rutinas = MagicMock()
+    ejercicios = MagicMock()
+    autenticacion = MagicMock()
+
+    controladores = {
+        "control_clientes": clientes,
+        "control_rutinas": rutinas,
+        "control_ejercicios": ejercicios,
+        "control_auth": autenticacion,
+        "configuracion_extra": "valor",
+    }
+
+    with patch.object(
+        tk.Tk,
+        "__init__",
+        return_value=None,
+    ), patch.object(
+        InterfazAdministrador,
+        "title",
+    ), patch.object(
+        InterfazAdministrador,
+        "geometry",
+    ), patch.object(
+        InterfazAdministrador,
+        "resizable",
+    ), patch.object(
+        InterfazAdministrador,
+        "mostrarMenuPrincipal",
+    ):
+        ventana = InterfazAdministrador(
+            administrador_actual=administrador,
+            controladores=controladores,
+        )
+
+    assert ventana.control_clientes is clientes
+    assert ventana.control_rutinas is rutinas
+    assert ventana.control_ejercicios is ejercicios
+    assert ventana.control_autenticacion is autenticacion
+
+    assert ventana.controladores["control_auth"] is autenticacion
+
+    assert (
+        ventana.controladores["control_autenticacion"]
+        is autenticacion
+    )
+
+    assert ventana.controladores["configuracion_extra"] == "valor"
+
+
+@pytest.mark.parametrize(
+    ("argumentos", "mensaje"),
+    [
+        (
+            {
+                "administrador_actual": None,
+                "control_clientes": MagicMock(),
+                "control_rutinas": MagicMock(),
+                "control_ejercicios": MagicMock(),
+                "control_autenticacion": MagicMock(),
+            },
+            "Debe existir un administrador autenticado.",
+        ),
+        (
+            {
+                "administrador_actual": MagicMock(),
+                "control_clientes": None,
+                "control_rutinas": MagicMock(),
+                "control_ejercicios": MagicMock(),
+                "control_autenticacion": MagicMock(),
+            },
+            "InterfazAdministrador requiere un "
+            "ControlClientes inicializado.",
+        ),
+        (
+            {
+                "administrador_actual": MagicMock(),
+                "control_clientes": MagicMock(),
+                "control_rutinas": None,
+                "control_ejercicios": MagicMock(),
+                "control_autenticacion": MagicMock(),
+            },
+            "InterfazAdministrador requiere un "
+            "ControlRutinas inicializado.",
+        ),
+        (
+            {
+                "administrador_actual": MagicMock(),
+                "control_clientes": MagicMock(),
+                "control_rutinas": MagicMock(),
+                "control_ejercicios": None,
+                "control_autenticacion": MagicMock(),
+            },
+            "InterfazAdministrador requiere un "
+            "ControlEjercicios inicializado.",
+        ),
+        (
+            {
+                "administrador_actual": MagicMock(),
+                "control_clientes": MagicMock(),
+                "control_rutinas": MagicMock(),
+                "control_ejercicios": MagicMock(),
+                "control_autenticacion": None,
+            },
+            "InterfazAdministrador requiere un "
+            "ControlAutenticacion inicializado.",
+        ),
+    ],
+)
+def test_constructor_valida_dependencias_obligatorias(
+    argumentos,
+    mensaje,
+):
+    """
+    Verifica los errores de validación del constructor.
+    """
+    with patch.object(
+        tk.Tk,
+        "__init__",
+        return_value=None,
+    ):
+        with pytest.raises(ValueError) as error:
+            InterfazAdministrador(**argumentos)
+
+    assert str(error.value) == mensaje
+
+def test_obtener_nombre_administrador_usa_atributo_nombre(
+    controles,
+):
+    """
+    Verifica el fallback a nombre cuando no existe un método utilizable.
+    """
+    administrador_simple = SimpleNamespace(nombre="Carlos")
+
+    ventana = crear_ventana_sin_tk(
+        administrador_simple,
+        controles,
+    )
+
+    assert ventana._obtener_nombre_administrador() == "Carlos"
+
+
+def test_es_modo_pruebas_es_verdadero_sin_control_autenticacion(
+    ventana,
+):
+    """
+    Verifica detección de instancia parcial de pruebas.
+    """
+    assert ventana._es_modo_pruebas() is True
+
+
+def test_es_modo_pruebas_es_verdadero_sin_diccionario_controladores(
+    ventana,
+):
+    """
+    Verifica detección cuando falta el diccionario de controladores.
+    """
+    ventana._control_autenticacion = MagicMock()
+
+    assert ventana._es_modo_pruebas() is True
+
+
+def test_es_modo_pruebas_es_falso_con_atributos_reales(
+    ventana,
+):
+    """
+    Verifica detección de instancia creada por la aplicación.
+    """
+    ventana._control_autenticacion = MagicMock()
+    ventana._controladores = {
+        "control_auth": ventana._control_autenticacion,
+    }
+
+    assert ventana._es_modo_pruebas() is False
+
+
+def test_abrir_gestion_rutinas_modo_real(
+    ventana,
+    controles,
+):
+    """
+    Verifica que rutinas reciba todas las dependencias en modo real.
+    """
+    notebook_mock = MagicMock()
+    autenticacion = MagicMock()
+    pestana_mock = MagicMock()
+
+    ventana._notebook = notebook_mock
+    ventana._control_autenticacion = autenticacion
+    ventana._controladores = {
+        "control_auth": autenticacion,
+    }
+
+    with patch(
+        "src.interfaz.interfaz_administrador."
+        "InterfazGestionRutinas",
+        return_value=pestana_mock,
+    ) as interfaz_mock:
+        ventana.abrirGestionRutinas()
+
+    interfaz_mock.assert_called_once_with(
+        master=notebook_mock,
+        control_rutinas=controles["rutinas"],
+        control_autenticacion=autenticacion,
+        control_ejercicios=controles["ejercicios"],
+    )
+
+    notebook_mock.add.assert_called_once_with(
+        pestana_mock,
+        text="Rutinas",
+    )
+
+
+def test_cerrar_sesion_modo_real_reutiliza_controladores(
+    ventana,
+    administrador,
+    controles,
+):
+    """
+    Verifica que el cierre real reutilice autenticación y dependencias.
+    """
+    autenticacion = MagicMock()
+
+    ventana._control_autenticacion = autenticacion
+    ventana._controladores = {
+        "control_auth": autenticacion,
+        "control_clientes": controles["clientes"],
+    }
+
+    login_mock = MagicMock()
+
+    with patch(
+        "src.interfaz.interfaz_login.InterfazLogin",
+        login_mock,
+    ):
+        ventana.cerrarSesion()
+
+    controles["clientes"]._registrar_log.assert_called_once_with(
+        administrador.correo_electronico,
+        "LOGOUT",
+    )
+
+    ventana.destroy.assert_called_once_with()
+
+    login_mock.assert_called_once_with(
+        control_autenticacion=autenticacion,
+        controladores=ventana._controladores,
+    )
+
+    login_mock.return_value.mainloop.assert_called_once_with()

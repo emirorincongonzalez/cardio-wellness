@@ -215,13 +215,26 @@ def test_main_agrega_raiz_del_proyecto_a_sys_path():
         sys.path[:] = sys_path_original
         importlib.reload(modulo_main)
 
-def test_ejecutar_main_como_script_inicia_gui():
+def test_ejecutar_main_como_script_inicia_gui(
+    monkeypatch,
+):
+    """
+    Verifica que src.main inicie la interfaz
+    cuando se ejecuta como script.
+    """
+    monkeypatch.delitem(
+        sys.modules,
+        "src.main",
+        raising=False,
+    )
+
     with patch(
         "src.persistencia.conexion_bd.ConexionBD"
     ) as mock_bd_cls, patch(
         "src.persistencia.rutina_dao.RutinaDAO"
     ), patch(
-        "src.persistencia.asignacion_rutina_dao.AsignacionRutinaDAO"
+        "src.persistencia.asignacion_rutina_dao."
+        "AsignacionRutinaDAO"
     ), patch(
         "src.persistencia.usuario_dao.UsuarioDAO"
     ), patch(
@@ -229,15 +242,19 @@ def test_ejecutar_main_como_script_inicia_gui():
     ), patch(
         "src.persistencia.ejercicio_dao.EjercicioDAO"
     ), patch(
-        "src.persistencia.sesion_entrenamiento_dao.SesionEntrenamientoDAO"
+        "src.persistencia.sesion_entrenamiento_dao."
+        "SesionEntrenamientoDAO"
     ), patch(
-        "src.persistencia.progreso_mensual_dao.ProgresoMensualDAO"
+        "src.persistencia.progreso_mensual_dao."
+        "ProgresoMensualDAO"
     ), patch(
-        "src.controladores.control_autenticacion.ControlAutenticacion"
+        "src.controladores.control_autenticacion."
+        "ControlAutenticacion"
     ), patch(
         "src.controladores.control_clientes.ControlClientes"
     ), patch(
-        "src.controladores.control_ejercicios.ControlEjercicios"
+        "src.controladores.control_ejercicios."
+        "ControlEjercicios"
     ), patch(
         "src.controladores.control_rutinas.ControlRutinas"
     ), patch(
@@ -249,7 +266,6 @@ def test_ejecutar_main_como_script_inicia_gui():
     ) as mock_interfaz_login, patch(
         "builtins.print"
     ):
-
         bd = MagicMock()
         bd.verificar_integridad.return_value = True
         mock_bd_cls.obtener_instancia.return_value = bd

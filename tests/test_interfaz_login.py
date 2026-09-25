@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+﻿from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -47,7 +47,7 @@ class TestInterfazLogin:
     @pytest.fixture
     def control_autenticacion(self):
         """
-        Crea un controlador de autenticación simulado.
+        Crea un controlador de autenticaciÃ³n simulado.
         """
         return MagicMock()
 
@@ -134,7 +134,7 @@ class TestInterfazLogin:
     ):
         """
         Verifica que se capturen correctamente
-        el correo y la contraseña.
+        el correo y la contraseÃ±a.
         """
         interfaz._ent_correo = EntryFalso(
             " ana@example.com "
@@ -155,7 +155,7 @@ class TestInterfazLogin:
         interfaz,
     ):
         """
-        Verifica que falle la captura cuando el correo está vacío.
+        Verifica que falle la captura cuando el correo estÃ¡ vacÃ­o.
         """
         interfaz._ent_correo = EntryFalso("")
         interfaz._ent_contrasenia = EntryFalso("123456")
@@ -177,7 +177,7 @@ class TestInterfazLogin:
         interfaz,
     ):
         """
-        Verifica que falle la captura cuando la contraseña está vacía.
+        Verifica que falle la captura cuando la contraseÃ±a estÃ¡ vacÃ­a.
         """
         interfaz._ent_correo = EntryFalso("ana@example.com")
         interfaz._ent_contrasenia = EntryFalso("")
@@ -199,7 +199,7 @@ class TestInterfazLogin:
         interfaz,
     ):
         """
-        Verifica que falle la captura cuando ambos campos están vacíos.
+        Verifica que falle la captura cuando ambos campos estÃ¡n vacÃ­os.
         """
         interfaz._ent_correo = EntryFalso("   ")
         interfaz._ent_contrasenia = EntryFalso("   ")
@@ -315,13 +315,13 @@ class TestInterfazLogin:
         control_autenticacion,
     ):
         """
-        Verifica el manejo de errores durante la autenticación.
+        Verifica el manejo de errores durante la autenticaciÃ³n.
         """
         interfaz._correo = "ana@example.com"
         interfaz._contrasenia = "123456"
 
         control_autenticacion.iniciar_sesion.side_effect = RuntimeError(
-            "Error de conexión"
+            "Error de conexiÃ³n"
         )
 
         with patch.object(
@@ -335,7 +335,7 @@ class TestInterfazLogin:
 
         mock_error.assert_called_once_with(
             "Error",
-            "Error al iniciar sesion: Error de conexión",
+            "Error al iniciar sesion: Error de conexiÃ³n",
         )
 
     def test_abrir_interfaz_por_rol_administrador(
@@ -383,3 +383,154 @@ class TestInterfazLogin:
 
         mock_interfaz.assert_called_once_with(usuario)
         app.mainloop.assert_called_once_with()
+
+
+def crear_interfaz_sin_tk():
+    interfaz = object.__new__(InterfazLogin)
+    interfaz._correo = ""
+    interfaz._contrasenia = ""
+    interfaz._control = MagicMock()
+
+    return interfaz
+
+
+def test_init_configura_interfaz_con_controladores_por_defecto():
+    control_autenticacion = MagicMock()
+
+    with patch(
+        "src.interfaz.interfaz_login.tk.Tk.__init__",
+        return_value=None,
+    ), patch(
+        "src.interfaz.interfaz_login.tk.Tk.title"
+    ) as mock_title, patch(
+        "src.interfaz.interfaz_login.tk.Tk.geometry"
+    ) as mock_geometry, patch(
+        "src.interfaz.interfaz_login.tk.Tk.resizable"
+    ) as mock_resizable, patch.object(
+        InterfazLogin,
+        "mostrarFormulario",
+    ) as mock_formulario:
+
+        interfaz = InterfazLogin(
+            control_autenticacion,
+        )
+
+    assert interfaz._correo == ""
+    assert interfaz._contrasenia == ""
+    assert interfaz._control is control_autenticacion
+
+    assert interfaz._controladores == {
+        "control_auth": control_autenticacion,
+        "control_autenticacion": control_autenticacion,
+    }
+
+    mock_title.assert_called_once_with(
+        "Cardio Wellness - Iniciar Sesion"
+    )
+    mock_geometry.assert_called_once_with("400x350")
+    mock_resizable.assert_called_once_with(False, False)
+    mock_formulario.assert_called_once()
+
+
+def test_init_conserva_controladores_recibidos():
+    control_autenticacion = MagicMock()
+
+    controladores = {
+        "control_auth": control_autenticacion,
+        "control_clientes": MagicMock(),
+        "control_rutinas": MagicMock(),
+    }
+
+    with patch(
+        "src.interfaz.interfaz_login.tk.Tk.__init__",
+        return_value=None,
+    ), patch(
+        "src.interfaz.interfaz_login.tk.Tk.title"
+    ), patch(
+        "src.interfaz.interfaz_login.tk.Tk.geometry"
+    ), patch(
+        "src.interfaz.interfaz_login.tk.Tk.resizable"
+    ), patch.object(
+        InterfazLogin,
+        "mostrarFormulario",
+    ):
+
+        interfaz = InterfazLogin(
+            control_autenticacion,
+            controladores=controladores,
+        )
+
+    assert interfaz._controladores is controladores
+    assert interfaz._control is control_autenticacion
+
+
+def test_es_modo_pruebas_detecta_instancia_sin_controladores():
+    interfaz = crear_interfaz_sin_tk()
+
+    assert interfaz._es_modo_pruebas() is True
+
+    interfaz._controladores = {}
+
+    assert interfaz._es_modo_pruebas() is False
+
+
+def test_abrir_interfaz_administrador_con_controladores():
+    interfaz = crear_interfaz_sin_tk()
+
+    usuario = MagicMock()
+    usuario.tipo_usuario = "administrador"
+
+    controladores = {
+        "control_auth": MagicMock(),
+        "control_clientes": MagicMock(),
+        "control_rutinas": MagicMock(),
+    }
+
+    interfaz._controladores = controladores
+
+    app = MagicMock()
+
+    with patch(
+        "src.interfaz.interfaz_administrador.InterfazAdministrador",
+        return_value=app,
+    ) as mock_interfaz:
+
+        interfaz._abrir_interfaz_por_rol(usuario)
+
+    mock_interfaz.assert_called_once_with(
+        administrador_actual=usuario,
+        controladores=controladores,
+    )
+
+    app.mainloop.assert_called_once()
+
+
+def test_abrir_interfaz_cliente_con_controladores():
+    interfaz = crear_interfaz_sin_tk()
+
+    usuario = MagicMock()
+    usuario.tipo_usuario = "cliente"
+
+    controladores = {
+        "control_auth": MagicMock(),
+        "control_clientes": MagicMock(),
+        "control_rutinas": MagicMock(),
+    }
+
+    interfaz._controladores = controladores
+
+    app = MagicMock()
+
+    with patch(
+        "src.interfaz.interfaz_cliente.InterfazCliente",
+        return_value=app,
+    ) as mock_interfaz:
+
+        interfaz._abrir_interfaz_por_rol(usuario)
+
+    mock_interfaz.assert_called_once_with(
+        cliente_actual=usuario,
+        controladores=controladores,
+    )
+
+    app.mainloop.assert_called_once()

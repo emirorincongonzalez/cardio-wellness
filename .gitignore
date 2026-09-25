@@ -56,3 +56,9 @@ error_sesiones.txt
 crear_admin.py
 cambiar_password.py
 restablecer_admin.py
+
+# Archivos locales y temporales
+database/*.db-shm
+database/*.db-wal
+logs/*.txt
+resultado_pruebas_*.txt

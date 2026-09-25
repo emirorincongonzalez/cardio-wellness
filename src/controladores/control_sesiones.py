@@ -497,11 +497,11 @@ class ControlSesiones(ControlBase):
             and sesion.completada
         )
 
-    def porcentaje_cumplimiento_sesion(
+        def porcentaje_cumplimiento_sesion(
         self,
         sesion: SesionEntrenamiento,
     ) -> float:
-        """
+         """
         Calcula el porcentaje de cumplimiento.
         """
         if not isinstance(
@@ -512,7 +512,12 @@ class ControlSesiones(ControlBase):
                 "La sesión no es válida."
             )
 
-        return sesion.porcentaje_cumplimiento()
+        porcentaje = sesion.porcentaje_cumplimiento
+
+        if callable(porcentaje):
+            porcentaje = porcentaje()
+
+        return float(porcentaje)
 
     @staticmethod
     def _extraer_id(

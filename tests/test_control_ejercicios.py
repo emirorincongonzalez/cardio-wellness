@@ -36,6 +36,17 @@ def controlador(
     )
 
 
+def test_propiedad_ejercicio_dao(
+    controlador,
+    mock_ejercicio_dao,
+):
+    """
+    Verifica que la propiedad exponga el DAO inyectado.
+    Cubre el return de la propiedad ejercicio_dao.
+    """
+    assert controlador.ejercicio_dao is mock_ejercicio_dao
+
+
 def test_instanciar_ejercicio_sin_id():
     """
     Prueba helper sin identificador de ejercicio.
@@ -80,6 +91,7 @@ def test_crear_ejercicio_exitoso_y_auditoria(
     """
     Prueba creación exitosa de ejercicio y auditoría.
     """
+
     def guardar_ejercicio(ejercicio):
         ejercicio.id_ejercicio = 1
         return ejercicio
@@ -103,7 +115,7 @@ def test_crear_ejercicio_exitoso_y_auditoria(
     mock_ejercicio_dao.guardar.assert_called_once()
 
     contenido_log = controlador.ruta_log.read_text(
-        encoding="utf-8"
+        encoding="utf-8",
     )
 
     assert "1" in contenido_log
@@ -116,9 +128,9 @@ def test_crear_ejercicio_sin_usuario_creador(
     mock_ejercicio_dao,
 ):
     """
-    Prueba creación sin usuario creador para usar sistema
-    como autor de auditoría.
+    Prueba creación sin usuario creador.
     """
+
     def guardar_ejercicio(ejercicio):
         ejercicio.id_ejercicio = 20
         return ejercicio
@@ -138,7 +150,7 @@ def test_crear_ejercicio_sin_usuario_creador(
     assert resultado.creado_por is None
 
     contenido_log = controlador.ruta_log.read_text(
-        encoding="utf-8"
+        encoding="utf-8",
     )
 
     assert "sistema" in contenido_log
@@ -153,6 +165,7 @@ def test_crear_ejercicio_acepta_intensidad_texto(
     """
     Prueba creación usando intensidad enviada como texto.
     """
+
     def guardar_ejercicio(ejercicio):
         ejercicio.id_ejercicio = 30
         return ejercicio
@@ -180,6 +193,7 @@ def test_crear_ejercicio_acepta_intensidad_enum(
     """
     Prueba creación usando intensidad enviada como enum.
     """
+
     def guardar_ejercicio(ejercicio):
         ejercicio.id_ejercicio = 31
         return ejercicio
@@ -292,9 +306,7 @@ def test_listar_y_alias(
     ]
 
     assert len(controlador.listar()) == 2
-
     assert len(controlador.listar_ejercicios()) == 2
-
     assert mock_ejercicio_dao.listar.call_count == 2
 
 
@@ -317,17 +329,17 @@ def test_actualizar_ejercicio_con_creador(
     mock_ejercicio_dao.actualizar.return_value = ejercicio
 
     resultado = controlador.actualizar_ejercicio(
-        ejercicio
+        ejercicio,
     )
 
     assert resultado == ejercicio
 
     mock_ejercicio_dao.actualizar.assert_called_once_with(
-        ejercicio
+        ejercicio,
     )
 
     contenido_log = controlador.ruta_log.read_text(
-        encoding="utf-8"
+        encoding="utf-8",
     )
 
     assert "7" in contenido_log
@@ -340,7 +352,7 @@ def test_actualizar_ejercicio_sin_creador(
     mock_ejercicio_dao,
 ):
     """
-    Prueba auditoría de actualización cuando no existe creador.
+    Prueba auditoría cuando no existe creador.
     """
     ejercicio = _instanciar_ejercicio(
         id_ejercicio=2,
@@ -354,13 +366,13 @@ def test_actualizar_ejercicio_sin_creador(
     mock_ejercicio_dao.actualizar.return_value = ejercicio
 
     resultado = controlador.actualizar_ejercicio(
-        ejercicio
+        ejercicio,
     )
 
     assert resultado is ejercicio
 
     contenido_log = controlador.ruta_log.read_text(
-        encoding="utf-8"
+        encoding="utf-8",
     )
 
     assert "sistema" in contenido_log
@@ -379,7 +391,7 @@ def test_actualizar_ejercicio_rechaza_tipo_incorrecto(
         match="EjercicioCardio",
     ):
         controlador.actualizar_ejercicio(
-            "no_es_instancia_ejercicio"
+            "no_es_instancia_ejercicio",
         )
 
 
@@ -400,11 +412,11 @@ def test_eliminar_ejercicio_y_auditoria(
     assert resultado is True
 
     mock_ejercicio_dao.eliminar_por_id.assert_called_once_with(
-        8
+        8,
     )
 
     contenido_log = controlador.ruta_log.read_text(
-        encoding="utf-8"
+        encoding="utf-8",
     )
 
     assert "1" in contenido_log
@@ -417,7 +429,7 @@ def test_eliminar_ejercicio_sin_usuario_accion(
     mock_ejercicio_dao,
 ):
     """
-    Prueba eliminación exitosa sin usuario para usar sistema.
+    Prueba eliminación exitosa sin usuario.
     """
     mock_ejercicio_dao.eliminar_por_id.return_value = True
 
@@ -426,8 +438,32 @@ def test_eliminar_ejercicio_sin_usuario_accion(
     assert resultado is True
 
     contenido_log = controlador.ruta_log.read_text(
-        encoding="utf-8"
+        encoding="utf-8",
     )
 
     assert "sistema" in contenido_log
-    assert "ELIMINACION_EJERCICIO"
+    assert "ELIMINACION_EJERCICIO" in contenido_log
+    assert "ID: 9" in contenido_log
+
+
+def test_eliminar_ejercicio_sin_resultado_no_registra_log(
+    controlador,
+    mock_ejercicio_dao,
+):
+    """
+    Prueba la rama donde el DAO no elimina el ejercicio.
+    """
+    mock_ejercicio_dao.eliminar_por_id.return_value = False
+
+    resultado = controlador.eliminar_ejercicio(
+        10,
+        usuario_accion=3,
+    )
+
+    assert resultado is False
+
+    mock_ejercicio_dao.eliminar_por_id.assert_called_once_with(
+        10,
+    )
+
+    assert not controlador.ruta_log.exists()
